@@ -137,11 +137,7 @@ object CoreTutorial {
             Integer.valueOf(bc.getTotalCount()))
         }
       }
-
     }
-
-
-
   }
 
   def getTargetClass(name:String): InputStream = {
