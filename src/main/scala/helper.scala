@@ -24,7 +24,10 @@ import scala.collection.JavaConversions._
 
 object Helper {
 
-  class MemoryClassLoader extends ClassLoader {
+  /**
+    * An in-memory class loader that are used to load instrumented classes.
+    */
+  class MemoryClassLoader(parent:ClassLoader) extends ClassLoader(parent) {
     val definitions = Map[String, Array[Byte]]()
 
     /**
@@ -39,6 +42,8 @@ object Helper {
       definitions(name) = bytes
     }
 
+    def isDefined(name:String) = definitions.contains(name)
+
     override protected def loadClass(name:String, resolve:Boolean): Class[_] = {
       val bytes = definitions.get(name);
       bytes match {
@@ -50,34 +55,43 @@ object Helper {
     }
   }
 
-  def getTargetClass(name: String): InputStream = {
+  private def getTargetClass(name: String): InputStream = {
     val resource = "/" + name.replace(".", "/") + ".class"
     getClass().getResourceAsStream(resource)
   }
 
-  val classLoader = new MemoryClassLoader()
+  /** Initialze the objects*/
+  val classLoader = new MemoryClassLoader(getClass().getClassLoader())
   val runtime = new SystemPropertiesRuntime()
   val instrumenter = new Instrumenter(runtime)
-  val data = new RuntimeData()
-  runtime.startup(data)
 
-  def instrument(name:String) = 
+  /** Use the instrumenter to instrument the class and returns the byte code*/
+  def instrument(name:String): Array[Byte] = 
     instrumenter.instrument(getTargetClass(name), name)
 
+  /** Add the definition to the in-memory class loader */
   def addDefinition(name:String, bytes:Array[Byte]) {
     classLoader.addDefinition(name, bytes)
   }
-
-  def loadClass(name:String) = 
-    classLoader.loadClass(name)
 
   def newInstance(name:String) = {
     val clazz = classLoader.loadClass(name)
     clazz.newInstance()
   }
 
+  def start: RuntimeData = {
+    val data = new RuntimeData()
+    runtime.startup(data)
+    data
+  }
+
+  def shutdown {
+    runtime.shutdown
+  }
+
   def writeClassFile(bytes:Array[Byte], name:String) {
     val path = FileSystems.getDefault().getPath(name + ".class")
     Files.write(path, bytes)
   }
+
 }
