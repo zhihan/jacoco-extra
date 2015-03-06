@@ -8,7 +8,7 @@ import org.jacoco.core.data.ExecutionDataStore;
 import org.jacoco.core.data.SessionInfoStore;
 import org.jacoco.core.instr.Instrumenter;
 import org.jacoco.core.runtime.IRuntime;
-import org.jacoco.core.runtime.LoggerRuntime;
+import org.jacoco.core.runtime.SystemPropertiesRuntime;
 import org.jacoco.core.runtime.RuntimeData;
 
 import java.io.InputStream;
@@ -56,8 +56,10 @@ object Helper {
   }
 
   val classLoader = new MemoryClassLoader()
-  val runtime = new LoggerRuntime()
+  val runtime = new SystemPropertiesRuntime()
   val instrumenter = new Instrumenter(runtime)
+  val data = new RuntimeData()
+  runtime.startup(data)
 
   def instrument(name:String) = 
     instrumenter.instrument(getTargetClass(name), name)

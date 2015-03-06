@@ -14,11 +14,23 @@ import org.jacoco.core.runtime.IRuntime;
 import org.jacoco.core.runtime.LoggerRuntime;
 import org.jacoco.core.runtime.RuntimeData;
 
+import org.objectweb.asm.ClassReader;
+
 import scala.collection.mutable.Map
 import scala.collection.JavaConversions._
 
+abstract class MyInt2I {
+  def getI(): Int
+}
+
+
 // Example from www.eclemma.org to demonstrate Jacoco's core API
 object CoreTutorial {
+  class MyInt2 extends MyInt2I {
+    val i = 0
+    def getI() = 1
+  }
+
   class TestTarget extends Runnable {
     def run() {
       isPrime(7);
@@ -37,7 +49,9 @@ object CoreTutorial {
     }
   }
 
-  class MemoryClassLoader extends ClassLoader {
+
+
+  class MemoryClassLoader(cl:ClassLoader) extends ClassLoader(cl) {
     val definitions = Map[String, Array[Byte]]()
 
     /**
@@ -65,7 +79,11 @@ object CoreTutorial {
 
   def execute {
     // Create instrumented byte code
-    val targetName = classOf[TestTarget].getName()
+
+    val classLoader = getClass().getClassLoader()
+    classLoader.loadClass("org.jacoco.examples.MyInt2I")
+
+    val targetName = classOf[MyInt2].getName()
     val runtime = new LoggerRuntime()
     val instrumenter = new Instrumenter(runtime)
     val instrumented = instrumenter.instrument(getTargetClass(targetName), targetName)
@@ -74,13 +92,16 @@ object CoreTutorial {
     val data = new RuntimeData()
     runtime.startup(data)
 
+
     // Load the instrumented bytecode
-    val memoryClassLoader = new MemoryClassLoader()
+    val memoryClassLoader = new MemoryClassLoader(classLoader)
+    //val inter = new ClassReader(getTargetClass(classOf[MyIntI].getName()))
+    //memoryClassLoader.addDefinition("org.jacoco.examples.MyIntI", inter.b)
     memoryClassLoader.addDefinition(targetName, instrumented)
     val targetClass = memoryClassLoader.loadClass(targetName)
 
-    val targetInstance = targetClass.newInstance().asInstanceOf[Runnable]
-    targetInstance.run()
+    val targetInstance = targetClass.newInstance().asInstanceOf[MyInt2I]
+    targetInstance.getI()
 
     // Run the code
     val executionData = new ExecutionDataStore()
