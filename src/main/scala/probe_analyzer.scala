@@ -2,6 +2,7 @@ package me.zhihan.jacoco.internal
 
 import org.jacoco.core.internal.flow.MethodProbesVisitor
 import org.jacoco.core.internal.flow.IFrame
+import org.jacoco.core.internal.flow.IProbeIdGenerator
 import org.objectweb.asm.Label
 /** 
   *  
@@ -20,6 +21,15 @@ import org.objectweb.asm.Label
   * In the same manner, if we provide different visitors we might be able
   * to map out correspondence between probes and branch instructions. 
   */
+
+class MyIdGenerator extends IProbeIdGenerator {
+  private var id = 0
+  override def nextId = {
+    val r = id
+    id += 1
+    r
+  }
+}
 
 class MethodProbeMapper extends MethodProbesVisitor {
   override def visitProbe(probeId: Int) {
