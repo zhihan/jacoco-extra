@@ -1,7 +1,8 @@
 package me.zhihan.jacoco.internal
 
 import org.jacoco.core.internal.flow.MethodProbesVisitor
-
+import org.jacoco.core.internal.flow.IFrame
+import org.objectweb.asm.Label
 /** 
   *  
   * The Jacoco internal relies on the fact that a method visitor would
@@ -25,6 +26,23 @@ class MethodProbeMapper extends MethodProbesVisitor {
     println(s"visiting probe $probeId")
   }
 
+  override def visitJumpInsnWithProbe(opcode: Int, label:Label,
+    probeId: Int, frame:IFrame) {
+    println("visiting jump instrumentation with probe")
+  }
 
+  override def visitInsnWithProbe(opcode: Int, probeId: Int) {
+    println("visiting instn with probe")
+  }
+
+  override def visitTableSwitchInsnWithProbes(min: Int, max:Int,
+    dflt:Label, labels: Array[Label], frame: IFrame) {
+    println("visiting table switch")
+  }
+
+  override def visitLookupSwitchInsnWithProbes(dflt: Label,
+    keys: Array[Int], labels: Array[Label], frame: IFrame) {
+    println("visiting lookup switch")
+  }
 
 }
