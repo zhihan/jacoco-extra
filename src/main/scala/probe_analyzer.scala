@@ -22,6 +22,9 @@ import org.objectweb.asm.Label
   * to map out correspondence between probes and branch instructions. 
   */
 
+/**
+  A Simple class that implements the id generator interface.
+  */
 class MyIdGenerator extends IProbeIdGenerator {
   private var id = 0
   override def nextId = {
@@ -31,7 +34,34 @@ class MyIdGenerator extends IProbeIdGenerator {
   }
 }
 
-class MethodProbeMapper extends MethodProbesVisitor {
+/**
+  * The mapper is a probes visitor that will cache control flow
+  * information as well as keeping track of the probes as the main
+  * driver generates the probe ids. Upon finishing the method it uses
+  * the information collected to generate the mapping information
+  * between probes and the instructions. 
+  * 
+  * 
+  * Implemenation
+  *  
+  * The implementation roughly follows the same pattern of the
+  * Analyzer. The mapper has a few states:
+  *   - lineMappings: a mapping between line number and labels
+  * 
+  *   - a sequence of "instructions", where each instruction has one
+  *     or more predecessors. The predecessor has a sole purpose of
+  *     'propagating branch information. Therefore the merge nodes in
+  *     the CFG has no predecessors, since the branch information
+  *     stops at the merge points.
+  * 
+  *   - The instructions each has states that keep track of the probes
+  *     that are associated with the instruction.
+  * 
+  * Initially the probes are associated with the instructions that
+  * prcedes the probe. At the end of visiting the methods, the probe
+  * numbers propagates through the predecessor chains. 
+  */
+class MethodProbesMapper extends MethodProbesVisitor {
   override def visitProbe(probeId: Int) {
     println(s"visiting probe $probeId")
   }
@@ -55,4 +85,9 @@ class MethodProbeMapper extends MethodProbesVisitor {
     println("visiting lookup switch")
   }
 
+  override def visitLineNumber(line: Int, start: Label) {
+    println("Visiting line " + line)
+  }
 }
+
+

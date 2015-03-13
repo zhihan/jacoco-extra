@@ -10,6 +10,9 @@ import org.objectweb.asm.tree.TryCatchBlockNode
 import org.objectweb.asm.util.Textifier
 import org.objectweb.asm.util.TraceMethodVisitor
 
+import me.zhihan.jacoco.internal._
+import org.jacoco.core.internal.flow.MethodProbesAdapter
+
 class MapperTest extends FunSuite {
   def linearSeqMethod = {
     val method = new MethodNode()
@@ -27,7 +30,16 @@ class MapperTest extends FunSuite {
     method.accept(visitor)
 
     val s = printer.getText
+
     assert(s.size() > 4)
   }
 
+  def sample1 {
+    val idGen = new MyIdGenerator()
+    val methodAdapter = new MethodProbesAdapter(
+      new MethodProbesMapper(), idGen)
+
+    val method = linearSeqMethod
+    method.accept(methodAdapter)
+  }
 }
