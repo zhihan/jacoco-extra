@@ -4,6 +4,9 @@ import org.jacoco.core.internal.flow.MethodProbesVisitor
 import org.jacoco.core.internal.flow.IFrame
 import org.jacoco.core.internal.flow.IProbeIdGenerator
 import org.objectweb.asm.Label
+
+import scala.collection.mutable.Map
+import scala.collection.mutable.Set
 /** 
   *  
   * The Jacoco internal relies on the fact that a method visitor would
@@ -61,9 +64,26 @@ class MyIdGenerator extends IProbeIdGenerator {
   * prcedes the probe. At the end of visiting the methods, the probe
   * numbers propagates through the predecessor chains. 
   */
+
+class Instruction {
+  var predecessor: Instruction = null
+  val probes: Set[Int] = Set()
+}
+
 class MethodProbesMapper extends MethodProbesVisitor {
+
+  var lastInstruction: Instruction = null
+  val lineToLabel: Map[Int, Label] = Map()
+  // Probes to the predecessors of the probes
+  val probeToInst: Map[Int, Instruction] = Map()
+
   override def visitProbe(probeId: Int) {
     println(s"visiting probe $probeId")
+
+    // This function is only called when visiting a merge node.
+    // Therefore the last instruction is the one probed.
+    assert(lastInstruction != null)
+    probeToInst += probeId -> lastInstruction
   }
 
   override def visitJumpInsnWithProbe(opcode: Int, label:Label,
@@ -86,8 +106,11 @@ class MethodProbesMapper extends MethodProbesVisitor {
   }
 
   override def visitLineNumber(line: Int, start: Label) {
-    println("Visiting line " + line)
+    println(s"visiting ${line}")
+    lineToLabel += line -> start
   }
+
+
 }
 
 
