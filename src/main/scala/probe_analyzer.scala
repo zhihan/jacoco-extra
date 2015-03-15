@@ -65,9 +65,29 @@ class MyIdGenerator extends IProbeIdGenerator {
   * numbers propagates through the predecessor chains. 
   */
 
-class Instruction {
+/**
+  * Instruction can have at most one predecessor which correspond to
+  * the same probe. 
+  */
+class Instruciton {
   var predecessor: Instruction = null
-  val probes: Set[Int] = Set()
+  val probe: Int = -1
+  val branches: Int = 0
+
+  def setPredecessor(pred: Instruction) {
+    predecessor = pred
+  }
+
+  def setProbe(probeId: Int) {
+    probes += probeId
+  }
+
+  // Propagate must make sure that it stops at branch nodes, i.e., instructions
+  // with more than one branches
+  def propagate: {
+    predecessor.setProbe(probes(0))
+  }
+
 }
 
 class MethodProbesMapper extends MethodProbesVisitor {
