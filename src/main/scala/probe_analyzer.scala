@@ -11,6 +11,7 @@ import org.objectweb.asm.Label
 import scala.collection.mutable.Map
 import scala.collection.mutable.Set
 import scala.collection.mutable.ArrayBuffer
+
 /** 
   *  
   * The Jacoco internal relies on the fact that a method visitor would
@@ -153,7 +154,6 @@ class MethodProbesMapper extends MethodProbesVisitor {
   }
     
   override def visitJumpInsn(opcode: Int, label: Label) {
-    println("Add a jump instruction")
     addNewInstruction
     assert(lastInstruction != null)
     assert(label != null)
@@ -179,6 +179,30 @@ class MethodProbesMapper extends MethodProbesVisitor {
     }
   }
 
+  override def visitTableSwitchInsn(min: Int, max: Int, dflt: Label, labels:Label*) {
+    visitSwitchInsn(dflt, labels.toArray)
+  }
+
+  override def visitLookupSwitchInsn(dflt: Label, keys: Array[Int], labels: Array[Label]) {
+    visitSwitchInsn(dflt, labels)
+  }
+
+  def visitSwitchInsn(dflt: Label, labels: Array[Label]) {
+    addNewInstruction
+    LabelInfo.resetDone(labels)
+    LabelInfo.resetDone(dflt)
+
+    jumps.append(new Jump(lastInstruction, dflt))
+    LabelInfo.setDone(dflt)
+
+    labels.foreach { label =>
+      if (!LabelInfo.isDone(label)) {
+        jumps.append(new Jump(lastInstruction, label))
+        LabelInfo.setDone(label)
+      }
+    }
+  }
+
   def addProbe(probeId: Int) {
     // We do not add probes to the flow graph, but we need to update
     // the branch count of the predecessor of the probe
@@ -187,8 +211,6 @@ class MethodProbesMapper extends MethodProbesVisitor {
   }
 
   override def visitProbe(probeId: Int) {
-    println(s"visiting probe $probeId")
-
     // This function is only called when visiting a merge node which
     // is a successor.
     // It adds an probe point to the last instruction
@@ -200,25 +222,48 @@ class MethodProbesMapper extends MethodProbesVisitor {
 
   override def visitJumpInsnWithProbe(opcode: Int, label:Label,
     probeId: Int, frame:IFrame) {
-    println("visiting jump instrumentation with probe")
     addNewInstruction
     addProbe(probeId)
   }
 
   override def visitInsnWithProbe(opcode: Int, probeId: Int) {
-    println("visiting instn with probe")
     addNewInstruction
     addProbe(probeId)
   }
 
   override def visitTableSwitchInsnWithProbes(min: Int, max:Int,
     dflt:Label, labels: Array[Label], frame: IFrame) {
-    println("visiting table switch")
+    visitSwitchInsnWithProbes(dflt, labels)
   }
 
   override def visitLookupSwitchInsnWithProbes(dflt: Label,
     keys: Array[Int], labels: Array[Label], frame: IFrame) {
-    println("visiting lookup switch")
+    visitSwitchInsnWithProbes(dflt, labels)
+  }
+
+  def visitSwitchInsnWithProbes(dflt: Label, labels: Array[Label]) {
+    addNewInstruction
+    LabelInfo.resetDone(dflt)
+    LabelInfo.resetDone(labels)
+
+    visitTargetWithProbe(dflt)
+    labels.foreach{ l => visitTargetWithProbe(l) }
+  }
+
+  def visitTargetWithProbe(label: Label) {
+    if (!LabelInfo.isDone(label)) {
+      val id = LabelInfo.getProbeId(label)
+      if (id == LabelInfo.NO_PROBE) {
+        jumps.append(new Jump(lastInstruction, label))
+      } else {
+        // Note, in this case the instrumenter should insert intermediate labels
+        // for the probes. These probes will be added for the switch instruction.
+        // 
+        // There is no direct jump between lastInstruction and the label either.
+        addProbe(id) 
+      }
+      LabelInfo.setDone(label)
+    }
   }
 
   override def visitLineNumber(line: Int, start: Label) {
