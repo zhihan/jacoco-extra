@@ -201,6 +201,8 @@ class MethodProbesMapper extends MethodProbesVisitor {
   override def visitJumpInsnWithProbe(opcode: Int, label:Label,
     probeId: Int, frame:IFrame) {
     println("visiting jump instrumentation with probe")
+    addNewInstruction
+    addProbe(probeId)
   }
 
   override def visitInsnWithProbe(opcode: Int, probeId: Int) {

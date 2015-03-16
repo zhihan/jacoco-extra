@@ -83,4 +83,14 @@ class MapperTest extends FunSuite {
     method
   }
 
+  test("If branch with merge method") {
+    val mapper = analyze(ifBranchMergeMethod) 
+    val result = mapper.lineToProbes
+    assert(result(1001).size == 2 && 
+      result(1001).contains(0) && result(1001).contains(1))
+    assert(result(1002).size == 1)
+    // the last line has an additional probe
+    assert(result(1003).size == 1 && result(1003).contains(2))
+  }
+
 }
