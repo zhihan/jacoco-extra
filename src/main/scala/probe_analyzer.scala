@@ -3,10 +3,14 @@ package me.zhihan.jacoco.internal
 import org.jacoco.core.internal.flow.MethodProbesVisitor
 import org.jacoco.core.internal.flow.IFrame
 import org.jacoco.core.internal.flow.IProbeIdGenerator
+import org.jacoco.core.internal.flow.Instruction
+import org.jacoco.core.internal.flow.LabelInfo
+import org.objectweb.asm.Handle
 import org.objectweb.asm.Label
 
 import scala.collection.mutable.Map
 import scala.collection.mutable.Set
+import scala.collection.mutable.ArrayBuffer
 /** 
   *  
   * The Jacoco internal relies on the fact that a method visitor would
@@ -65,45 +69,135 @@ class MyIdGenerator extends IProbeIdGenerator {
   * numbers propagates through the predecessor chains. 
   */
 
-/**
-  * Instruction can have at most one predecessor which correspond to
-  * the same probe. 
-  */
-class Instruciton {
-  var predecessor: Instruction = null
-  val probe: Int = -1
-  val branches: Int = 0
 
-  def setPredecessor(pred: Instruction) {
-    predecessor = pred
-  }
-
-  def setProbe(probeId: Int) {
-    probes += probeId
-  }
-
-  // Propagate must make sure that it stops at branch nodes, i.e., instructions
-  // with more than one branches
-  def propagate: {
-    predecessor.setProbe(probes(0))
-  }
-
+class Jump(i: Instruction, l:Label) {
+  val source = i
+  val target = l
 }
 
+/**
+  *  Assuming LabelInfo is available!
+  */
 class MethodProbesMapper extends MethodProbesVisitor {
 
   var lastInstruction: Instruction = null
-  val lineToLabel: Map[Int, Label] = Map()
+
+  var currentLine: Int = -1
+  var lastLine: Int = -1
+  var firstLine: Int = -1
+
   // Probes to the predecessors of the probes
   val probeToInst: Map[Int, Instruction] = Map()
+
+  // A local cache of predecessors as this info is not exposed in Jacoco.
+  val pred: Map[Instruction, Instruction] = Map() 
+  val lineToProbes: Map[Int, Set[Int]] = Map()
+
+  val instructions: ArrayBuffer[Instruction] = ArrayBuffer()
+  val jumps: ArrayBuffer[Jump] = ArrayBuffer()
+  val currentLabels: ArrayBuffer[Label] = ArrayBuffer()
+
+  val labelToInstruction: Map[Label, Instruction] = Map()
+
+  /**
+    *  Add a new instruction to the end of the 
+    */
+  private def addNewInstruction {
+    val instruction = new Instruction(currentLine)
+    instructions.append(instruction)
+    if (lastInstruction != null) {
+      instruction.setPredecessor(lastInstruction)
+      pred += instruction -> lastInstruction
+    }
+
+    val labelCount = currentLabels.size;
+
+    currentLabels.foreach{ label =>
+      labelToInstruction += label -> instruction
+    }
+
+    currentLabels.clear;
+
+    lastInstruction = instruction
+  }
+
+  /**
+    *  Plain instructions without any probes
+    */
+  override def visitInsn(opcode: Int) {
+    addNewInstruction
+  }
+
+  override def visitIntInsn(opcode: Int, operand: Int) {
+    addNewInstruction
+  }
+
+  override def visitVarInsn(opcode: Int, variable: Int) {
+    addNewInstruction
+  }
+
+  override def visitTypeInsn(opcode: Int, ty: String) {
+    addNewInstruction
+  }
+
+  override def visitFieldInsn(opcode: Int, owner: String, name: String, desc:String) {
+    addNewInstruction
+  }
+
+  override def visitMethodInsn(opcode: Int, owner: String, name: String, 
+    desc: String, itf:Boolean) {
+    addNewInstruction
+  }
+
+  override def visitInvokeDynamicInsn(name: String, desc: String, handle: Handle,
+    args: Object*) {
+    addNewInstruction
+  }
+    
+  override def visitJumpInsn(opcode: Int, label: Label) {
+    println("Add a jump instruction")
+    addNewInstruction
+    assert(lastInstruction != null)
+    assert(label != null)
+    jumps.append(new Jump(lastInstruction, label))
+  }
+
+  override def visitLdcInsn(cst: Any) {
+    addNewInstruction
+  }
+
+  override def visitIincInsn(v:Int, inc: Int) {
+    addNewInstruction
+  }
+
+  override def visitMultiANewArrayInsn(desc: String, dims: Int) {
+    addNewInstruction
+  }
+
+  override def visitLabel(label: Label) {
+    currentLabels.append(label)
+    if (!LabelInfo.isSuccessor(label)) {
+      lastInstruction = null;
+    }
+  }
+
+  def addProbe(probeId: Int) {
+    // We do not add probes to the flow graph, but we need to update
+    // the branch count of the predecessor of the probe
+    lastInstruction.addBranch
+    probeToInst += probeId -> lastInstruction
+  }
 
   override def visitProbe(probeId: Int) {
     println(s"visiting probe $probeId")
 
-    // This function is only called when visiting a merge node.
-    // Therefore the last instruction is the one probed.
+    // This function is only called when visiting a merge node which
+    // is a successor.
+    // It adds an probe point to the last instruction
     assert(lastInstruction != null)
-    probeToInst += probeId -> lastInstruction
+
+    addProbe(probeId)
+    lastInstruction = null // Merge point should have no predecessor.
   }
 
   override def visitJumpInsnWithProbe(opcode: Int, label:Label,
@@ -113,6 +207,8 @@ class MethodProbesMapper extends MethodProbesVisitor {
 
   override def visitInsnWithProbe(opcode: Int, probeId: Int) {
     println("visiting instn with probe")
+    addNewInstruction
+    addProbe(probeId)
   }
 
   override def visitTableSwitchInsnWithProbes(min: Int, max:Int,
@@ -126,10 +222,46 @@ class MethodProbesMapper extends MethodProbesVisitor {
   }
 
   override def visitLineNumber(line: Int, start: Label) {
-    println(s"visiting ${line}")
-    lineToLabel += line -> start
+    currentLine = line
+    if (lastLine < 0 || firstLine > line) {
+      firstLine = line
+    }
+    if (lastLine < line) {
+      lastLine = line
+    }
   }
 
+  /** Finishing the method */
+  override def visitEnd {
+
+    jumps.foreach{
+      jump => {
+        val insn = labelToInstruction(jump.target)
+        insn.setPredecessor(jump.source)
+        pred += insn -> jump.source
+      }
+    }
+
+    probeToInst.foreach {
+      case(probeId, i) => {
+        var insn = i
+        while (insn != null) {
+          if (lineToProbes.contains(insn.getLine)) {
+            lineToProbes(insn.getLine) += probeId
+          } else {
+            lineToProbes += insn.getLine -> Set(probeId)
+          }
+
+          if (insn.getBranches > 1) {
+            insn = null // break at branches
+          } else {
+            insn = pred.getOrElse(insn, null)
+          }
+        }
+      }
+    }
+
+  }
 
 }
 
