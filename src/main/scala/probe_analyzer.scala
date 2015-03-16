@@ -84,8 +84,6 @@ class MethodProbesMapper extends MethodProbesVisitor {
   var lastInstruction: Instruction = null
 
   var currentLine: Int = -1
-  var lastLine: Int = -1
-  var firstLine: Int = -1
 
   // Probes to the predecessors of the probes
   val probeToInst: Map[Int, Instruction] = Map()
@@ -268,12 +266,6 @@ class MethodProbesMapper extends MethodProbesVisitor {
 
   override def visitLineNumber(line: Int, start: Label) {
     currentLine = line
-    if (lastLine < 0 || firstLine > line) {
-      firstLine = line
-    }
-    if (lastLine < line) {
-      lastLine = line
-    }
   }
 
   /** Finishing the method */
