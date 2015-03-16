@@ -68,6 +68,19 @@ class MapperTest extends FunSuite {
       result(1001).contains(0) && result(1001).contains(1))
     assert(result(1002).size == 1)
     assert(result(1003).size == 1)
-
   }
+
+  def ifBranchMergeMethod = {
+    val method = emptyMethod
+    method.visitLineNumber(1001, new Label())
+    val l1 = new Label()
+    method.visitJumpInsn(Opcodes.IFEQ, l1)
+    method.visitLineNumber(1002, new Label())
+    method.visitInsn(Opcodes.NOP)
+    method.visitLabel(l1)
+    method.visitLineNumber(1003, l1)
+    method.visitInsn(Opcodes.RETURN)
+    method
+  }
+
 }

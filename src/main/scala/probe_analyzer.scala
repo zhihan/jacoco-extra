@@ -115,9 +115,7 @@ class MethodProbesMapper extends MethodProbesVisitor {
     currentLabels.foreach{ label =>
       labelToInstruction += label -> instruction
     }
-
     currentLabels.clear;
-
     lastInstruction = instruction
   }
 
