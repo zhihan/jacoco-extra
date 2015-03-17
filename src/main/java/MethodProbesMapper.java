@@ -47,7 +47,7 @@ public class MethodProbesMapper extends MethodProbesVisitor {
   private Map<Instruction, Instruction> predecessors = new HashMap<Instruction, Instruction>();
   private Map<Label, Instruction> labelToInsn = new HashMap<Label, Instruction>();
  
-  // Visitor method to append a new Instruction
+  /** Visitor method to append a new Instruction */
   private void visitInsn() {
     Instruction instruction = new Instruction(currentLine);
     instructions.add(instruction);
@@ -63,6 +63,44 @@ public class MethodProbesMapper extends MethodProbesVisitor {
     }
     currentLabels.clear(); // Update states
     lastInstruction = instruction; 
+  }
+
+  // Plain visitors: called from adapter when no probe is needed 
+  @Override
+  public void visitInsn(int opcode) {
+    visitInsn();
+  }
+
+  @Override 
+  public void visitIntInsn(int opcode, int operand) {
+    visitInsn();
+  }
+
+  @Override
+  public void visitVarInsn(int opcode, int variable) {
+    visitInsn();
+  }
+
+  @Override
+  public void visitTypeInsn(int opcode, String type) {
+    visitInsn();
+  }
+
+  @Override
+  public void visitFieldInsn(int opcode, String owner, String name, String desc) {
+    visitInsn();
+  }
+
+  @Override
+  public void visitMethodInsn(int opcode, String owner, String name, 
+    String desc, boolean itf) {
+    visitInsn();
+  }
+
+  @Override
+  public void visitInvokeDynamicInsn(String name, String desc, Handle handle,
+    Object... args) {
+    visitInsn();
   }
 
   /**

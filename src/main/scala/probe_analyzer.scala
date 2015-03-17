@@ -153,8 +153,6 @@ class MethodProbesMapper extends MethodProbesVisitor {
     
   override def visitJumpInsn(opcode: Int, label: Label) {
     addNewInstruction
-    assert(lastInstruction != null)
-    assert(label != null)
     jumps.append(new Jump(lastInstruction, label))
   }
 
