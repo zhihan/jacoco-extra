@@ -101,7 +101,7 @@ class MethodProbesMapper extends MethodProbesVisitor {
   /**
     *  Add a new instruction to the end of the 
     */
-  private def addNewInstruction {
+  private def visitInstruction {
     val instruction = new Instruction(currentLine)
     instructions.append(instruction)
     if (lastInstruction != null) {
@@ -119,53 +119,25 @@ class MethodProbesMapper extends MethodProbesVisitor {
   }
 
   /**
-    *  Plain instructions without any probes
+    *  Plain instructions without any probes, delegate to the private method
     */
-  override def visitInsn(opcode: Int) {
-    addNewInstruction
-  }
-
-  override def visitIntInsn(opcode: Int, operand: Int) {
-    addNewInstruction
-  }
-
-  override def visitVarInsn(opcode: Int, variable: Int) {
-    addNewInstruction
-  }
-
-  override def visitTypeInsn(opcode: Int, ty: String) {
-    addNewInstruction
-  }
-
-  override def visitFieldInsn(opcode: Int, owner: String, name: String, desc:String) {
-    addNewInstruction
-  }
-
+  override def visitInsn(opcode: Int) = visitInstruction
+  override def visitIntInsn(opcode: Int, operand: Int) = visitInstruction
+  override def visitVarInsn(opcode: Int, variable: Int) = visitInstruction
+  override def visitTypeInsn(opcode: Int, ty: String) = visitInstruction
+  override def visitFieldInsn(opcode: Int, owner: String, name: String, desc:String) = visitInstruction
   override def visitMethodInsn(opcode: Int, owner: String, name: String, 
-    desc: String, itf:Boolean) {
-    addNewInstruction
-  }
-
+    desc: String, itf:Boolean) = visitInstruction
   override def visitInvokeDynamicInsn(name: String, desc: String, handle: Handle,
-    args: Object*) {
-    addNewInstruction
-  }
-    
+    args: Object*) = visitInstruction
+  override def visitLdcInsn(cst: Any) = visitInstruction
+  override def visitIincInsn(v:Int, inc: Int) = visitInstruction
+  override def visitMultiANewArrayInsn(desc: String, dims: Int) = visitInstruction
+  
+
   override def visitJumpInsn(opcode: Int, label: Label) {
-    addNewInstruction
+    visitInstruction
     jumps.append(new Jump(lastInstruction, label))
-  }
-
-  override def visitLdcInsn(cst: Any) {
-    addNewInstruction
-  }
-
-  override def visitIincInsn(v:Int, inc: Int) {
-    addNewInstruction
-  }
-
-  override def visitMultiANewArrayInsn(desc: String, dims: Int) {
-    addNewInstruction
   }
 
   override def visitLabel(label: Label) {
@@ -175,16 +147,14 @@ class MethodProbesMapper extends MethodProbesVisitor {
     }
   }
 
-  override def visitTableSwitchInsn(min: Int, max: Int, dflt: Label, labels:Label*) {
+  override def visitTableSwitchInsn(min: Int, max: Int, dflt: Label, labels:Label*) = 
     visitSwitchInsn(dflt, labels.toArray)
-  }
 
-  override def visitLookupSwitchInsn(dflt: Label, keys: Array[Int], labels: Array[Label]) {
+  override def visitLookupSwitchInsn(dflt: Label, keys: Array[Int], labels: Array[Label]) =
     visitSwitchInsn(dflt, labels)
-  }
 
   def visitSwitchInsn(dflt: Label, labels: Array[Label]) {
-    addNewInstruction
+    visitInstruction
     LabelInfo.resetDone(labels)
     LabelInfo.resetDone(dflt)
 
@@ -218,12 +188,12 @@ class MethodProbesMapper extends MethodProbesVisitor {
 
   override def visitJumpInsnWithProbe(opcode: Int, label:Label,
     probeId: Int, frame:IFrame) {
-    addNewInstruction
+    visitInstruction
     addProbe(probeId)
   }
 
   override def visitInsnWithProbe(opcode: Int, probeId: Int) {
-    addNewInstruction
+    visitInstruction
     addProbe(probeId)
   }
 
@@ -238,7 +208,7 @@ class MethodProbesMapper extends MethodProbesVisitor {
   }
 
   def visitSwitchInsnWithProbes(dflt: Label, labels: Array[Label]) {
-    addNewInstruction
+    visitInstruction
     LabelInfo.resetDone(dflt)
     LabelInfo.resetDone(labels)
 
@@ -295,9 +265,7 @@ class MethodProbesMapper extends MethodProbesVisitor {
         }
       }
     }
-
   }
-
 }
 
 

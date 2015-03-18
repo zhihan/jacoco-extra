@@ -103,6 +103,57 @@ public class MethodProbesMapper extends MethodProbesVisitor {
     visitInsn();
   }
 
+  @Override
+  public void visitLdcInsn(Object cst) {
+    visitInsn();
+  }
+
+  @Override
+  public void visitIincInsn(int var, int inc) {
+    visitInsn();
+  }
+
+  @Override
+  public void visitMultiANewArrayInsn(String desc, int dims) {
+    visitInsn();
+  }
+
+
+  // Methods that need to update the states
+  @Override
+  public void visitJumpInsn(int opcode, Label label) {
+    visitInsn();
+    jumps.add(new Jump(lastInstruction, label));
+  }
+  
+  @Override
+  public void visitLabel(Label label) {
+    currentLabels.add(label);
+    if (!LabelInfo.isSuccessor(label)) {
+      lastInstruction = null;
+    }
+  }
+
+  /** Visit a switch instruction with no probes */
+  private void visitSwitchInsn(Label dflt, Label[] labels) {
+    visitInsn();
+
+    // Handle default transition
+    LabelInfo.resetDone(dflt);
+    jumps.add(new Jump(lastInstruction, dflt));
+    LabelInfo.setDone(dflt);
+
+    // Handle other transitions
+    LabelInfo.resetDone(labels);
+    for (Label label: labels) {
+      if (!LabelInfo.isDone(label)) {
+        jumps.add(new Jump(lastInstruction, label));
+        LabelInfo.setDone(label);
+      }
+    }    
+  }
+
+
   /**
     * Jumps between instructions and labels
     */
