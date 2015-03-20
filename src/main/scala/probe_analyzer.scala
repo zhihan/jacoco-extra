@@ -1,16 +1,9 @@
 package me.zhihan.jacoco.internal
 
-import org.jacoco.core.internal.flow.MethodProbesVisitor
-import org.jacoco.core.internal.flow.IFrame
-import org.jacoco.core.internal.flow.IProbeIdGenerator
-import org.jacoco.core.internal.flow.Instruction
-import org.jacoco.core.internal.flow.LabelInfo
-import org.objectweb.asm.Handle
-import org.objectweb.asm.Label
-
-import scala.collection.mutable.Map
-import scala.collection.mutable.Set
-import scala.collection.mutable.ArrayBuffer
+import org.jacoco.core.internal.flow.{MethodProbesVisitor, IFrame, 
+  IProbeIdGenerator, Instruction, LabelInfo}
+import org.objectweb.asm.{Handle, Label}
+import scala.collection.mutable.{Map, MultiMap, HashMap, Set, ArrayBuffer}
 
 /** 
   *  
@@ -34,11 +27,11 @@ import scala.collection.mutable.ArrayBuffer
   A Simple class that implements the id generator interface.
   */
 class MyIdGenerator extends IProbeIdGenerator {
-  private var id = 0
+  private var id = -1
+  
   override def nextId = {
-    val r = id
     id += 1
-    r
+    id
   }
 }
 
@@ -69,20 +62,11 @@ class MyIdGenerator extends IProbeIdGenerator {
   * prcedes the probe. At the end of visiting the methods, the probe
   * numbers propagates through the predecessor chains. 
   */
+class Jump(val source: Instruction, val target:Label) {}
 
-
-class Jump(i: Instruction, l:Label) {
-  val source = i
-  val target = l
-}
-
-/**
-  *  Assuming LabelInfo is available!
-  */
+// Assuming LabelInfo is available!
 class MethodProbesMapper extends MethodProbesVisitor {
-
   var lastInstruction: Instruction = null
-
   var currentLine: Int = -1
 
   // Probes to the predecessors of the probes
@@ -90,17 +74,14 @@ class MethodProbesMapper extends MethodProbesVisitor {
 
   // A local cache of predecessors as this info is not exposed in Jacoco.
   val pred: Map[Instruction, Instruction] = Map() 
-  val lineToProbes: Map[Int, Set[Int]] = Map()
+  val lineToProbes: MultiMap[Int, Int] = new HashMap[Int, Set[Int]]() with MultiMap[Int,Int]
 
   val instructions: ArrayBuffer[Instruction] = ArrayBuffer()
   val jumps: ArrayBuffer[Jump] = ArrayBuffer()
   val currentLabels: ArrayBuffer[Label] = ArrayBuffer()
-
   val labelToInstruction: Map[Label, Instruction] = Map()
 
-  /**
-    *  Add a new instruction to the end of the 
-    */
+  /** Add a new instruction to the end of the */
   private def visitInstruction {
     val instruction = new Instruction(currentLine)
     instructions.append(instruction)
@@ -118,9 +99,7 @@ class MethodProbesMapper extends MethodProbesVisitor {
     lastInstruction = instruction
   }
 
-  /**
-    *  Plain instructions without any probes, delegate to the private method
-    */
+  // Plain instructions without any probes, delegate to the private method
   override def visitInsn(opcode: Int) = visitInstruction
   override def visitIntInsn(opcode: Int, operand: Int) = visitInstruction
   override def visitVarInsn(opcode: Int, variable: Int) = visitInstruction
@@ -134,7 +113,6 @@ class MethodProbesMapper extends MethodProbesVisitor {
   override def visitIincInsn(v:Int, inc: Int) = visitInstruction
   override def visitMultiANewArrayInsn(desc: String, dims: Int) = visitInstruction
   
-
   override def visitJumpInsn(opcode: Int, label: Label) {
     visitInstruction
     jumps.append(new Jump(lastInstruction, label))
@@ -238,7 +216,6 @@ class MethodProbesMapper extends MethodProbesVisitor {
 
   /** Finishing the method */
   override def visitEnd {
-
     jumps.foreach{
       jump => {
         val insn = labelToInstruction(jump.target)
@@ -251,11 +228,7 @@ class MethodProbesMapper extends MethodProbesVisitor {
       case(probeId, i) => {
         var insn = i
         while (insn != null) {
-          if (lineToProbes.contains(insn.getLine)) {
-            lineToProbes(insn.getLine) += probeId
-          } else {
-            lineToProbes += insn.getLine -> Set(probeId)
-          }
+          lineToProbes.addBinding(insn.getLine, probeId)
 
           if (insn.getBranches > 1) {
             insn = null // break at branches
@@ -267,5 +240,3 @@ class MethodProbesMapper extends MethodProbesVisitor {
     }
   }
 }
-
-

@@ -6,6 +6,7 @@ import org.objectweb.asm.Label;
 import org.jacoco.core.internal.flow.MethodProbesVisitor;
 import org.jacoco.core.internal.flow.Instruction;
 import org.jacoco.core.internal.flow.LabelInfo;
+import org.jacoco.core.internal.flow.IFrame;
 
 import com.google.common.collect.Multimap;
 import com.google.common.collect.HashMultimap;
@@ -134,6 +135,11 @@ public class MethodProbesMapper extends MethodProbesVisitor {
     }
   }
 
+  @Override
+  public void visitLineNumber(int line, Label start) {
+    currentLine = line;
+  }
+
   /** Visit a switch instruction with no probes */
   private void visitSwitchInsn(Label dflt, Label[] labels) {
     visitInsn();
@@ -153,11 +159,105 @@ public class MethodProbesMapper extends MethodProbesVisitor {
     }    
   }
 
+  private void addProbe(int probeId) {
+    // We do not add probes to the flow graph, but we need to update
+    // the branch count of the predecessor of the probe
+    lastInstruction.addBranch();
+    probeToInsn.put(probeId, lastInstruction);
+  }
+
+  // Probe visit methods
+  @Override
+  public void visitProbe(int probeId) {
+    // This function is only called when visiting a merge node which
+    // is a successor.
+    // It adds an probe point to the last instruction
+    assert(lastInstruction != null);
+
+    addProbe(probeId);
+    lastInstruction = null; // Merge point should have no predecessor.    
+  }
+
+  @Override 
+  public void visitJumpInsnWithProbe(int opcode, Label label, int probeId, IFrame frame) {
+    visitInsn();
+    addProbe(probeId);
+  }
+
+  @Override
+  public void visitInsnWithProbe(int opcode, int probeId) {
+    visitInsn();
+    addProbe(probeId);
+  }
+
+  @Override 
+  public void visitTableSwitchInsnWithProbes(int min, int max,
+    Label dflt, Label[] labels, IFrame frame) {
+    visitSwitchInsnWithProbes(dflt, labels);
+  }
+
+  @Override 
+  public void visitLookupSwitchInsnWithProbes(Label dflt,
+    int[] keys, Label[] labels, IFrame frame) {
+    visitSwitchInsnWithProbes(dflt, labels);
+  }
+
+  private void visitSwitchInsnWithProbes(Label dflt, Label[] labels) {
+    visitInsn();
+    LabelInfo.resetDone(dflt);
+    LabelInfo.resetDone(labels);
+
+    visitTargetWithProbe(dflt);
+    for (Label l : labels) {
+      visitTargetWithProbe(l);
+    }
+  }
+
+  private void visitTargetWithProbe(Label label) {
+    if (!LabelInfo.isDone(label)) {
+      int id = LabelInfo.getProbeId(label);
+      if (id == LabelInfo.NO_PROBE) {
+        jumps.add(new Jump(lastInstruction, label));
+      } else {
+        // Note, in this case the instrumenter should insert intermediate labels
+        // for the probes. These probes will be added for the switch instruction.
+        // 
+        // There is no direct jump between lastInstruction and the label either.
+        addProbe(id); 
+      }
+      LabelInfo.setDone(label);
+    }
+  }  
+
+  /** Finishing the method */
+  @Override 
+  public void visitEnd() {
+    for (Jump jump : jumps) {
+      Instruction insn = labelToInsn.get(jump.target);
+      insn.setPredecessor(jump.source);
+      predecessors.put(insn, jump.source);
+    }
+
+    for (Map.Entry<Integer, Instruction> entry : probeToInsn.entrySet()) {     
+      int probeId = entry.getKey();
+      Instruction i = entry.getValue();
+
+      Instruction insn = i;
+      while (insn != null) {
+        lineToProbes.put(insn.getLine(), probeId); 
+        if (insn.getBranches() > 1) {
+          insn = null; // break at branches 
+        } else {
+          insn = predecessors.get(insn);
+        }
+      }
+    }
+  }
 
   /**
     * Jumps between instructions and labels
     */
-  class Jump{ 
+  class Jump { 
     public Instruction source;
     public Label target;
 
