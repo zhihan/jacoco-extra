@@ -74,7 +74,7 @@ class MethodProbesMapper extends MethodProbesVisitor {
 
   // A local cache of predecessors as this info is not exposed in Jacoco.
   val pred: Map[Instruction, Instruction] = Map() 
-  val lineToProbes: MultiMap[Int, Int] = new HashMap[Int, Set[Int]]() with MultiMap[Int,Int]
+  val lineToProbes = new HashMap[Int, Set[Int]]() with MultiMap[Int,Int]
 
   val instructions: ArrayBuffer[Instruction] = ArrayBuffer()
   val jumps: ArrayBuffer[Jump] = ArrayBuffer()
@@ -89,8 +89,6 @@ class MethodProbesMapper extends MethodProbesVisitor {
       instruction.setPredecessor(lastInstruction)
       pred += instruction -> lastInstruction
     }
-
-    val labelCount = currentLabels.size;
 
     currentLabels.foreach{ label =>
       labelToInstruction += label -> instruction
@@ -194,7 +192,7 @@ class MethodProbesMapper extends MethodProbesVisitor {
     labels.foreach{ l => visitTargetWithProbe(l) }
   }
 
-  def visitTargetWithProbe(label: Label) {
+  def visitTargetWithProbe(label: Label) = 
     if (!LabelInfo.isDone(label)) {
       val id = LabelInfo.getProbeId(label)
       if (id == LabelInfo.NO_PROBE) {
@@ -208,24 +206,19 @@ class MethodProbesMapper extends MethodProbesVisitor {
       }
       LabelInfo.setDone(label)
     }
-  }
 
-  override def visitLineNumber(line: Int, start: Label) {
-    currentLine = line
-  }
+  override def visitLineNumber(line: Int, start: Label) { currentLine = line }
 
   /** Finishing the method */
   override def visitEnd {
-    jumps.foreach{
-      jump => {
+    jumps.foreach{ jump => {
         val insn = labelToInstruction(jump.target)
         insn.setPredecessor(jump.source)
         pred += insn -> jump.source
       }
     }
 
-    probeToInst.foreach {
-      case(probeId, i) => {
+    probeToInst.foreach { case(probeId, i) => {
         var insn = i
         while (insn != null) {
           lineToProbes.addBinding(insn.getLine, probeId)
