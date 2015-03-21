@@ -1,17 +1,9 @@
 package me.zhihan.jacoco.internal
 
 import org.scalatest.FunSuite
-
-import org.objectweb.asm.Label
-import org.objectweb.asm.Opcodes
-import org.objectweb.asm.tree.MethodNode
-import org.objectweb.asm.tree.TryCatchBlockNode
-
-import org.objectweb.asm.util.Textifier
-import org.objectweb.asm.util.TraceMethodVisitor
-
-import org.jacoco.core.internal.flow.MethodProbesAdapter
-import org.jacoco.core.internal.flow.LabelFlowAnalyzer
+import org.objectweb.asm.{Opcodes, Label}
+import org.objectweb.asm.tree.{MethodNode, TryCatchBlockNode}
+import org.jacoco.core.internal.flow.{MethodProbesAdapter, LabelFlowAnalyzer}
 
 class MapperTest extends FunSuite {
   def emptyMethod = {
@@ -34,15 +26,15 @@ class MapperTest extends FunSuite {
     val methodAdapter = new MethodProbesAdapter(mapper, new MyIdGenerator())
     LabelFlowAnalyzer.markLabels(method)
     method.accept(methodAdapter)
-    mapper
+    mapper.lineToProbes
   }
 
   test("Linear Sequence with return map") {
-    val mapper = analyze(linearSeqMethod)
-    assert(mapper.lineToProbes(1001).size == 1 &&
-      mapper.lineToProbes(1001).contains(0))
-    assert(mapper.lineToProbes(1002).size == 1 &&
-      mapper.lineToProbes(1002).contains(0))
+    val result = analyze(linearSeqMethod)
+    assert(result(1001).size == 1 &&
+      result(1001).contains(0))
+    assert(result(1002).size == 1 &&
+      result(1002).contains(0))
   }
 
   def ifBranchMethod = {
@@ -62,8 +54,7 @@ class MapperTest extends FunSuite {
   }
 
   test("Simple if branch method") {
-    val mapper = analyze(ifBranchMethod) 
-    val result = mapper.lineToProbes
+    val result = analyze(ifBranchMethod) 
     assert(result(1001).size == 2 && 
       result(1001).contains(0) && result(1001).contains(1))
     assert(result(1002).size == 1)
@@ -84,8 +75,7 @@ class MapperTest extends FunSuite {
   }
 
   test("If branch with merge method") {
-    val mapper = analyze(ifBranchMergeMethod) 
-    val result = mapper.lineToProbes
+    val result = analyze(ifBranchMergeMethod) 
     assert(result(1001).size == 2 && 
       result(1001).contains(0) && result(1001).contains(1))
     assert(result(1002).size == 1)
@@ -110,8 +100,7 @@ class MapperTest extends FunSuite {
   }
 
   test("Jump backwards method") {
-    val mapper = analyze(jumpBackwardMethod) 
-    val result = mapper.lineToProbes
+    val result = analyze(jumpBackwardMethod) 
     assert(result(1001).size == 1 && result(1001).contains(0))
     assert(result(1002).size == 1 && result(1002).contains(0))
     assert(result(1003).size == 1 && result(1003).contains(0))
@@ -134,8 +123,7 @@ class MapperTest extends FunSuite {
   }
 
   test("Jump to first instruction method") {
-    val mapper = analyze(jumpToFirstMethod)
-    val result = mapper.lineToProbes
+    val result = analyze(jumpToFirstMethod)
     assert(result(1001).size == 2 &&
       result(1001).contains(0) && result(1001).contains(1))
     assert(result(1002).size == 1)
@@ -179,8 +167,7 @@ class MapperTest extends FunSuite {
   }
 
   test("Table switch with no intermediate labels") {
-    val mapper = analyze(tableSwitchMethod)
-    val result = mapper.lineToProbes
+    val result = analyze(tableSwitchMethod)
     assert(result(1001).size == 3 &&
       result(1001).contains(0) && result(1001).contains(1) && result(1001).contains(2))
     assert(result(1007).size == 1 && result(1007).contains(3))
@@ -216,8 +203,7 @@ class MapperTest extends FunSuite {
   }
 
   test("Table with merge") {
-    val mapper = analyze(tableSwitchWithMerge)
-    val result = mapper.lineToProbes
+    val result = analyze(tableSwitchWithMerge)
     assert(result(1002).size == 3 &&
       result(1002).contains(0) && result(1002).contains(1) && result(1002).contains(2))
     assert(result(1005).size == 1 && result(1005).contains(4))
@@ -252,12 +238,9 @@ class MapperTest extends FunSuite {
 
   // As far as I can tell, try catch block does not have branches
   test("Try catch block") {
-    val mapper = analyze(tryCatchBlock)
-    val result = mapper.lineToProbes
+    val result = analyze(tryCatchBlock)
     assert(result(1001).size == 1)
     assert(result(1002).size == 1)
     assert(result(1004).size == 1)
   }
-
-
 }

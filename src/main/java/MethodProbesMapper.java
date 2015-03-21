@@ -32,6 +32,9 @@ public class MethodProbesMapper extends MethodProbesVisitor {
 
   // Result
   private Multimap<Integer, Integer> lineToProbes = HashMultimap.<Integer, Integer>create();
+  public Multimap<Integer, Integer> result() {
+    return lineToProbes;
+  }
 
   // Intermediate results
   //
