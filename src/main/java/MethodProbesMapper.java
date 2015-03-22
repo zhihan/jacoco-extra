@@ -162,6 +162,16 @@ public class MethodProbesMapper extends MethodProbesVisitor {
     }    
   }
 
+  @Override
+  public void visitTableSwitchInsn(int min, int max, Label dflt, Label... labels) { 
+    visitSwitchInsn(dflt, labels);
+  }
+
+  @Override
+  public void visitLookupSwitchInsn(Label dflt, int[] keys, Label[] labels) {
+    visitSwitchInsn(dflt, labels);
+  }
+
   private void addProbe(int probeId) {
     // We do not add probes to the flow graph, but we need to update
     // the branch count of the predecessor of the probe
@@ -261,8 +271,8 @@ public class MethodProbesMapper extends MethodProbesVisitor {
     * Jumps between instructions and labels
     */
   class Jump { 
-    public Instruction source;
-    public Label target;
+    public final Instruction source;
+    public final Label target;
 
     public Jump(Instruction i, Label l) {
       source = i;

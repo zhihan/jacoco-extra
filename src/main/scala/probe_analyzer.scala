@@ -131,12 +131,11 @@ class MethodProbesMapper extends MethodProbesVisitor {
 
   def visitSwitchInsn(dflt: Label, labels: Array[Label]) {
     visitInstruction
-    LabelInfo.resetDone(labels)
     LabelInfo.resetDone(dflt)
-
     jumps.append(new Jump(lastInstruction, dflt))
     LabelInfo.setDone(dflt)
 
+    LabelInfo.resetDone(labels)
     labels.foreach { label =>
       if (!LabelInfo.isDone(label)) {
         jumps.append(new Jump(lastInstruction, label))

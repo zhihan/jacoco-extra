@@ -39,7 +39,7 @@ public class MethodProbesMapperTest implements IProbeIdGenerator {
     method.visitInsn(Opcodes.RETURN);
   }
 
-  private Multimap<Integer, Integer> analyze() {
+  public Multimap<Integer, Integer> analyze() {
     MethodProbesMapper mapper = new MethodProbesMapper();
     MethodProbesAdapter methodAdapter = new MethodProbesAdapter(mapper, this);
     LabelFlowAnalyzer.markLabels(method);
@@ -81,4 +81,131 @@ public class MethodProbesMapperTest implements IProbeIdGenerator {
     Assert.assertEquals(result.get(1002).size(), 1);
     Assert.assertEquals(result.get(1003).size(), 1);
   }
+
+  private void createIfBranchMerge() {
+    method.visitLineNumber(1001, new Label());
+    method.visitVarInsn(Opcodes.ILOAD, 1);
+    Label l1 = new Label();
+    method.visitJumpInsn(Opcodes.IFEQ, l1);
+    method.visitLineNumber(1002, new Label());
+    method.visitInsn(Opcodes.NOP);
+    method.visitLabel(l1);
+    method.visitLineNumber(1003, l1);
+    method.visitInsn(Opcodes.RETURN);
+  }
+
+  @Test
+  public void testIfBranchMerge() {
+    createIfBranchMerge();
+    Multimap<Integer, Integer> result = analyze();
+
+    Assert.assertEquals(3, nextProbeId);
+    Assert.assertEquals(2, result.get(1001).size());
+    Assert.assertEquals(1, result.get(1002).size());
+    Assert.assertEquals(1, result.get(1003).size());
+    Assert.assertTrue(result.containsEntry(1003, 2));
+    Assert.assertTrue(result.containsEntry(1001, 0));
+    Assert.assertTrue(result.containsEntry(1001, 1));
+  }
+
+  private void createJumpBackwards() {
+    method.visitLineNumber(1001, new Label());
+    final Label l1 = new Label();
+    method.visitJumpInsn(Opcodes.GOTO, l1);
+    final Label l2 = new Label();
+    method.visitLabel(l2);
+    method.visitLineNumber(1002, l2);
+    method.visitInsn(Opcodes.RETURN);
+    method.visitLabel(l1);
+    method.visitLineNumber(1003, l1);
+    method.visitJumpInsn(Opcodes.GOTO, l2);
+  }
+
+  @Test
+  public void testJumpBackwards() {
+    createJumpBackwards();
+    Multimap<Integer, Integer> result = analyze();
+
+    Assert.assertEquals(1, nextProbeId);
+    Assert.assertEquals(1, result.get(1001).size());
+    Assert.assertEquals(1, result.get(1002).size());
+    Assert.assertEquals(1, result.get(1003).size());
+    Assert.assertTrue(result.containsEntry(1001, 0));
+    Assert.assertTrue(result.containsEntry(1002, 0));
+    Assert.assertTrue(result.containsEntry(1003, 0));
+  }
+
+  private void createJumpToFirst() {
+    final Label l1 = new Label();
+    method.visitLabel(l1);
+    method.visitLineNumber(1001, l1);
+    method.visitVarInsn(Opcodes.ALOAD, 0);
+    method.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "Foo", "test", "()Z",
+        false);
+    method.visitJumpInsn(Opcodes.IFEQ, l1);
+    final Label l2 = new Label();
+    method.visitLabel(l2);
+    method.visitLineNumber(1002, l2);
+    method.visitInsn(Opcodes.RETURN);
+  }
+
+  @Test
+  public void testJumpToFirst() {
+    createJumpToFirst();
+    Multimap<Integer, Integer> result = analyze();
+
+    Assert.assertEquals(2, nextProbeId);
+    Assert.assertEquals(2, result.get(1001).size());
+    Assert.assertEquals(1, result.get(1002).size());
+    Assert.assertTrue(result.containsEntry(1001, 0));
+    Assert.assertTrue(result.containsEntry(1001, 1));
+  }
+
+  public void createTableSwitch() {
+    method.visitLineNumber(1001, new Label());
+    method.visitVarInsn(Opcodes.ILOAD, 1);
+    Label l1 = new Label();
+    Label l2 = new Label();
+    Label l3 = new Label();
+    method.visitTableSwitchInsn(1, 3, l3, new Label[] { l1, l2, l1 });
+    
+    method.visitLabel(l1);
+    method.visitLineNumber(1002, l1);
+    method.visitIntInsn(Opcodes.BIPUSH, 11);
+    method.visitVarInsn(Opcodes.ISTORE, 2);
+    method.visitLineNumber(1003, new Label());    
+    Label l5 = new Label();
+    method.visitJumpInsn(Opcodes.GOTO, l5);
+    
+    method.visitLabel(l2);
+    method.visitLineNumber(1004, l2);
+    method.visitIntInsn(Opcodes.BIPUSH, 22);
+    method.visitVarInsn(Opcodes.ISTORE, 2);
+    method.visitLineNumber(1005, new Label());
+    method.visitJumpInsn(Opcodes.GOTO, l5);
+
+    method.visitLabel(l3);
+    method.visitLineNumber(1006, l3);
+    method.visitInsn(Opcodes.ICONST_0);
+    method.visitVarInsn(Opcodes.ISTORE, 2);
+    
+    method.visitLabel(l5);
+    method.visitLineNumber(1007, l5);
+    method.visitVarInsn(Opcodes.ILOAD, 2);
+    method.visitInsn(Opcodes.IRETURN);
+  }
+
+  @Test
+  public void testTableSwitch() {
+    createTableSwitch();
+    Multimap<Integer, Integer> result = analyze();
+
+    Assert.assertEquals(4, nextProbeId);
+    Assert.assertEquals(3, result.get(1001).size());
+    Assert.assertTrue(result.containsEntry(1001, 0));
+    Assert.assertTrue(result.containsEntry(1001, 1));
+    Assert.assertTrue(result.containsEntry(1001, 2));
+    Assert.assertTrue(result.containsEntry(1007, 3));
+  }
+
 }
