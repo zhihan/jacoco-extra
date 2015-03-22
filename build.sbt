@@ -7,7 +7,8 @@ lazy val root = (project in file(".")).
     libraryDependencies += "org.jacoco" % "org.jacoco.core" % "0.7.4.201502262128",
     libraryDependencies += "com.google.guava" % "guava" % "18.0",
     libraryDependencies += "org.scalatest" % "scalatest_2.11" % "2.1.7" % "test",
-    libraryDependencies += "com.novocode" % "junit-interface" % "0.11" % "test"
+    libraryDependencies += "com.novocode" % "junit-interface" % "0.11" % "test",
+    testOptions += Tests.Argument(TestFrameworks.JUnit, "-q", "-v") 
   )
 
 

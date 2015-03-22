@@ -208,4 +208,71 @@ public class MethodProbesMapperTest implements IProbeIdGenerator {
     Assert.assertTrue(result.containsEntry(1007, 3));
   }
 
+  private void createTableSwitchMerge() {
+    method.visitLineNumber(1001, new Label());
+    method.visitInsn(Opcodes.ICONST_0);
+    method.visitVarInsn(Opcodes.ISTORE, 2);
+    method.visitLineNumber(1002, new Label());
+    method.visitVarInsn(Opcodes.ILOAD, 1);
+    Label l2 = new Label();
+    Label l3 = new Label();
+    Label l4 = new Label();
+    method.visitTableSwitchInsn(1, 3, l4, new Label[] { l2, l3, l2 });
+    method.visitLabel(l2);
+    method.visitLineNumber(1003, l2);
+    method.visitIincInsn(2, 1);
+    method.visitLabel(l3);
+    method.visitLineNumber(1004, l3);
+    method.visitIincInsn(2, 1);
+    method.visitLabel(l4);
+    method.visitLineNumber(1005, l4);
+    method.visitVarInsn(Opcodes.ILOAD, 2);
+    method.visitInsn(Opcodes.IRETURN);
+  }
+
+  @Test
+  public void testTableSwitchMerge() {
+    createTableSwitchMerge();
+    Multimap<Integer, Integer> result = analyze();
+
+    Assert.assertEquals(5, nextProbeId);
+    Assert.assertEquals(3, result.get(1002).size());
+    Assert.assertTrue(result.containsEntry(1002, 0));
+    Assert.assertTrue(result.containsEntry(1002, 1));
+    Assert.assertTrue(result.containsEntry(1002, 2));
+    Assert.assertTrue(result.containsEntry(1005, 4));
+  }
+
+  private void createTryCatchBlock() {
+    Label l1 = new Label();
+    Label l2 = new Label();
+    Label l3 = new Label();
+    Label l4 = new Label();
+    method.visitTryCatchBlock(l1, l2, l3, "java/lang/Exception");
+    method.visitLabel(l1);
+    method.visitLineNumber(1001, l1);
+    method.visitVarInsn(Opcodes.ALOAD, 0);
+    method.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/Throwable",
+      "printStackTrace", "()V", false);
+    method.visitLabel(l2);
+    method.visitJumpInsn(Opcodes.GOTO, l4);
+    method.visitLabel(l3);
+    method.visitLineNumber(1002, l3);
+    method.visitVarInsn(Opcodes.ASTORE, 1);
+    method.visitLabel(l4);
+    method.visitLineNumber(1004, l4);
+    method.visitInsn(Opcodes.RETURN);
+  }
+
+  @Test
+  public void testTryCatchBlock() {
+    createTryCatchBlock();
+    Multimap<Integer, Integer> result = analyze();
+
+    Assert.assertEquals(3, nextProbeId);
+    Assert.assertEquals(1, result.get(1001).size());
+    Assert.assertEquals(1, result.get(1002).size());
+    Assert.assertEquals(1, result.get(1004).size());
+
+  }
 }
