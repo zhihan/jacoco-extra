@@ -31,6 +31,7 @@ public class MethodProbesMapperTest implements IProbeIdGenerator {
     return nextProbeId++;
   }
 
+  // Simple linear sequence of instructions.
   private void createLinearSequence() {
     method.visitLineNumber(1001, new Label());
     method.visitInsn(Opcodes.NOP);
@@ -50,9 +51,34 @@ public class MethodProbesMapperTest implements IProbeIdGenerator {
   public void testLinearSequence() {
     createLinearSequence();
     Multimap<Integer, Integer> result = analyze();
+    
     Assert.assertEquals(1, nextProbeId);
     Assert.assertTrue(result.containsEntry(1001, 0));
     Assert.assertTrue(result.containsEntry(1002, 0));
     Assert.assertEquals(result.size(), 2);
+  }
+
+  private void createIfBranch() {
+    method.visitLineNumber(1001, new Label());
+    method.visitVarInsn(Opcodes.ILOAD, 1);
+    Label l1 = new Label();
+    method.visitJumpInsn(Opcodes.IFEQ, l1);
+    method.visitLineNumber(1002, new Label());
+    method.visitLdcInsn("a");
+    method.visitInsn(Opcodes.ARETURN);
+    method.visitLabel(l1);
+    method.visitLineNumber(1003, l1);
+    method.visitLdcInsn("b");
+    method.visitInsn(Opcodes.ARETURN);
+  }
+
+  @Test
+  public void testIfBranch() {
+    createIfBranch();
+    Multimap<Integer, Integer> result = analyze();
+
+    Assert.assertEquals(2, nextProbeId);
+    Assert.assertEquals(result.get(1002).size(), 1);
+    Assert.assertEquals(result.get(1003).size(), 1);
   }
 }
