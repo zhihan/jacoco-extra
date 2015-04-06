@@ -7,7 +7,6 @@ import org.objectweb.asm.{Handle, Label, FieldVisitor, ClassReader}
 import scala.collection.mutable.{Map, MultiMap, HashMap, Set, ArrayBuffer}
 
 /** 
-  *  
   * The Jacoco internal relies on the fact that a method visitor would
   * visit the coverage nodes in the same order as they were created to
   * map the information correctly. This is done in the "Adapter"
