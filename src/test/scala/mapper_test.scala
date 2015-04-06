@@ -261,11 +261,11 @@ class ClassMapperTest extends FunSuite {
   test("Non empty method") {
     val mapper = newAnalyzer
 
-    val mv = mapper.visitMethod(0, "foo", "()V",
-      null, null);
-    mv.visitCode();
-    mv.visitInsn(Opcodes.RETURN);
-    mv.visitEnd();
+    val mv = mapper.visitMethod(0, "foo", "()V", null, null)
+    mv.visitCode()
+    mv.visitInsn(Opcodes.RETURN)
+    mv.visitEnd()
+    
     assert(mapper.classLineToProbes.isEmpty)
   }
 }
