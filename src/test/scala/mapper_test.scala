@@ -1,11 +1,14 @@
 package me.zhihan.jacoco.internal
 
 import org.scalatest.FunSuite
-import org.objectweb.asm.{Opcodes, Label}
+import org.objectweb.asm.{Opcodes, Label, ClassReader}
 import org.objectweb.asm.tree.{MethodNode, TryCatchBlockNode}
 import org.jacoco.core.internal.flow.{MethodProbesAdapter, LabelFlowAnalyzer}
 
-class MapperTest extends FunSuite {
+import scala.collection.mutable.Map
+import java.io.InputStream
+
+class MethodMapperTest extends FunSuite {
   def emptyMethod = {
     val method = new MethodNode()
     method.tryCatchBlocks = new java.util.ArrayList[TryCatchBlockNode]()
@@ -243,4 +246,67 @@ class MapperTest extends FunSuite {
     assert(result(1002).size == 1)
     assert(result(1004).size == 1)
   }
+}
+
+
+class ClassMapperTest extends FunSuite {
+  def newAnalyzer = {
+    val mapper = new ClassProbesMapper()
+    mapper.visit(Opcodes.V1_5, Opcodes.ACC_PUBLIC, "Foo", null,
+      "java/lang/Object", null)
+    mapper
+  }
+
+
+  test("Non empty method") {
+    val mapper = newAnalyzer
+
+    val mv = mapper.visitMethod(0, "foo", "()V",
+      null, null);
+    mv.visitCode();
+    mv.visitInsn(Opcodes.RETURN);
+    mv.visitEnd();
+    assert(mapper.classLineToProbes.isEmpty)
+  }
+}
+
+class MapperTest extends FunSuite {
+  class MemoryClassLoader(cl: ClassLoader) extends ClassLoader(cl) {
+    val definitions = Map[String, Array[Byte]]()
+
+    /**
+      * Add a in-memory representation of a class.
+      * 
+      * @param name
+      *            name of the class
+      * @param bytes
+      *            class definition
+      */
+    def addDefinition(name:String, bytes:Array[Byte]) {
+      definitions(name) = bytes
+    }
+
+    override protected def loadClass(name:String, resolve:Boolean) = {
+      val bytes = definitions.get(name);
+      bytes match {
+        case Some(b) => defineClass(name, b, 0, b.length)
+        case None => super.loadClass(name, resolve)
+      }
+    }    
+  }
+
+  def getTargetClass(name:String): InputStream = {
+    val resource = "/" + name.replace(".", "/") + ".class"
+    getClass().getResourceAsStream(resource)
+  }
+
+  test("Domonstrate mapping function") {
+    val mapper = new Mapper()
+    val c = new MyC()
+    val inputS = getTargetClass("me.zhihan.jacoco.internal.MyC")
+    val m = mapper.analyzeClass(new ClassReader(inputS))
+    println(m)
+    assert(m(10).size == 2) // Make sure the source code does not change
+  }
+
 }
