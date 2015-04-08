@@ -55,7 +55,7 @@ object Helper {
     }
   }
 
-  private def getTargetClass(name: String): InputStream = {
+  def getTargetClass(name: String): InputStream = {
     val resource = "/" + name.replace(".", "/") + ".class"
     getClass().getResourceAsStream(resource)
   }
@@ -87,6 +87,15 @@ object Helper {
 
   def shutdown {
     runtime.shutdown
+  }
+
+  def collect(data: RuntimeData) = {
+    val executionData = new ExecutionDataStore()
+    val sessionInfos = new SessionInfoStore()
+    data.collect(executionData, sessionInfos, false)
+
+    runtime.shutdown()
+    executionData
   }
 
   def writeClassFile(bytes:Array[Byte], name:String) {

@@ -306,7 +306,7 @@ class MapperTest extends FunSuite {
     val inputS = getTargetClass("me.zhihan.jacoco.internal.MyC")
     val m = mapper.analyzeClass(new ClassReader(inputS))
     println(m)
-    assert(m(10).size == 2) // Make sure the source code does not change
+    assert(m(11).size == 2) // Make sure the source code does not change
   }
 
 }
