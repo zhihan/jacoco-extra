@@ -2,6 +2,8 @@ package me.zhihan.jacoco
 
 import me.zhihan.jacoco.internal.{MyC, MyI}
 import org.objectweb.asm.ClassReader
+import org.jacoco.core.data.{ExecutionData, ExecutionDataStore}
+import org.jacoco.core.internal.data.CRC64
 import org.scalatest.FunSuite 
 
 abstract class MyInter {
@@ -10,6 +12,21 @@ abstract class MyInter {
 
 class MyName extends MyInter {
   def name = "Anonymous"
+}
+
+class ExecutionDataTests extends FunSuite {
+  test("Load executiondata") {
+    val store = new ExecutionDataStore()
+    val inStream = Helper.getTargetClass(classOf[MyC].getName())
+    val reader = new ClassReader(inStream)
+    val classId = CRC64.checksum(reader.b)
+    val ed = new ExecutionData(classId,
+      classOf[MyC].getName(), Array(true, false, false, false))
+    store.put(ed)
+
+    val reporter = new CoverageReporter(store)
+    reporter.analyzeClass(reader)
+  }
 }
 
 class HelperTests extends FunSuite {
@@ -24,6 +41,7 @@ class HelperTests extends FunSuite {
     Helper.addDefinition(className, bytes)
     val runtimeData = Helper.start
     val obj = Helper.newInstance(className).asInstanceOf[MyInter]
+
     assert(obj.name === "Anonymous")
     Helper.shutdown
   }
