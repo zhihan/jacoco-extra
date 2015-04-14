@@ -21,7 +21,7 @@ class ExecutionDataTests extends FunSuite {
     val reader = new ClassReader(inStream)
     val classId = CRC64.checksum(reader.b)
     val ed = new ExecutionData(classId,
-      classOf[MyC].getName(), Array(true, false, false, false))
+      classOf[MyC].getName(), Array(true, false, false, false, false, false))
     store.put(ed)
 
     val reporter = new CoverageReporter(store)

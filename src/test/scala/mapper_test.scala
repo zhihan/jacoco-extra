@@ -310,3 +310,4 @@ class MapperTest extends FunSuite {
   }
 
 }
+
