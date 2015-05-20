@@ -215,6 +215,7 @@ class MethodProbesMapper extends MethodProbesVisitor {
 
   /** Finishing the method */
   override def visitEnd {
+    println(s" Total ${jumps.size} jumps.")
     jumps.foreach{ jump => {
         val insn = labelToInstruction(jump.target)
         insn.setPredecessor(jump.source)
