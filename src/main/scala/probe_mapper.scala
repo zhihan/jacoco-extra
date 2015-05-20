@@ -168,7 +168,7 @@ class MethodProbesMapper extends MethodProbesVisitor {
 
   override def visitJumpInsnWithProbe(opcode: Int, label:Label,
     probeId: Int, frame:IFrame) {
-    visitInstruction
+    visitJumpInsn(opcode, label)
     addProbe(probeId)
   }
 
@@ -216,10 +216,12 @@ class MethodProbesMapper extends MethodProbesVisitor {
   /** Finishing the method */
   override def visitEnd {
     println(s" Total ${jumps.size} jumps.")
-    jumps.foreach{ jump => {
+    jumps.foreach{ jump =>
+      {
         val insn = labelToInstruction(jump.target)
         insn.setPredecessor(jump.source)
         pred += insn -> jump.source
+        
       }
     }
 
@@ -229,7 +231,7 @@ class MethodProbesMapper extends MethodProbesVisitor {
           lineToProbes.addBinding(insn.getLine, probeId)
 
           if (insn.getBranches > 1) {
-            insn = null // break at branches
+            insn = pred.getOrElse(insn, null) //null // break at branches
           } else {
             insn = pred.getOrElse(insn, null)
           }

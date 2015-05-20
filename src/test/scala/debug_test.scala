@@ -76,4 +76,31 @@ class DebugTest extends FunSuite {
   test("Debug test") {
     val result = analyze(nullTestMethod)
   }
+
+  def exprMethod = {
+    val method = emptyMethod
+    method.visitLineNumber(1, new Label())
+    method.visitVarInsn(Opcodes.ILOAD, 1)
+    val l1 = new Label()
+    method.visitJumpInsn(Opcodes.IFLE, l1)
+    method.visitInsn(Opcodes.ICONST_1)
+
+    val l2 = new Label()
+    method.visitJumpInsn(Opcodes.GOTO, l2)
+
+    method.visitLabel(l1)
+    method.visitInsn(Opcodes.ICONST_0)
+
+    method.visitLabel(l2)
+    method.visitMethodInsn(
+      Opcodes.INVOKESTATIC,
+      "com/google/common/base/Preconditions",
+      "checkArgument",
+      "(Z)V")
+    method.visitLineNumber(2, new Label())
+    method.visitVarInsn(Opcodes.ILOAD, 1)
+    method.visitInsn(Opcodes.IRETURN)
+    method
+  }
+
 }
