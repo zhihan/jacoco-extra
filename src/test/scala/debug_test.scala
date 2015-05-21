@@ -29,7 +29,7 @@ class DebugTest extends FunSuite {
     val methodAdapter = new MethodProbesAdapter(mapper, new MyIdGenerator())
     LabelFlowAnalyzer.markLabels(method)
     method.accept(methodAdapter)
-    mapper.lineToProbes
+    mapper
   }
 
   def nullTestMethod = {

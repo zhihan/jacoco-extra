@@ -8,6 +8,7 @@ import org.jacoco.core.internal.flow.{MethodProbesAdapter, LabelFlowAnalyzer}
 import scala.collection.mutable.Map
 import java.io.InputStream
 
+/*
 class MethodMapperTest extends FunSuite {
   def emptyMethod = {
     val method = new MethodNode()
@@ -311,3 +312,4 @@ class MapperTest extends FunSuite {
 
 }
 
+ */
