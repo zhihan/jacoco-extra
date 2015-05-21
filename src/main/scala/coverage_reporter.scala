@@ -1,10 +1,10 @@
 package me.zhihan.jacoco
 
-import me.zhihan.jacoco.internal.Mapper
+import me.zhihan.jacoco.internal.{Mapper, BranchExp, CovExp}
 import org.jacoco.core.data.{ExecutionDataStore, ExecutionData}
 import org.jacoco.core.internal.data.CRC64
 import org.objectweb.asm.ClassReader
-import scala.collection.mutable.{Map, MultiMap, HashMap, Set}
+import scala.collection.mutable.Map
 
 class CoverageReporter(val store: ExecutionDataStore) {
   val mapper = new Mapper()
@@ -15,13 +15,13 @@ class CoverageReporter(val store: ExecutionDataStore) {
 
     if (execData != null) {
       val probes = execData.getProbes()
-      val lineToProbes: MultiMap[Int, Int] =
+      val lineToBranchExp: Map[Int, BranchExp] =
         mapper.analyzeClass(reader)
-      lineToProbes.foreach { case (line: Int, branches: Set[Int]) =>
-        if (branches.size > 1) {
+      lineToBranchExp.foreach { case (line: Int, branchExp: BranchExp) =>
+        if (branchExp.branches.size > 1) {
           print(s"Line $line: ") 
-          branches.foreach { branch =>
-            if (probes(branch)) {
+          branchExp.branches.foreach { exp =>
+            if (CovExp.evaluate (probes) (exp)) {
               print("T")
             } else {
               print("F")

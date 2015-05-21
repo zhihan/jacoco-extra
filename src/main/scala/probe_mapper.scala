@@ -4,24 +4,7 @@ import org.jacoco.core.internal.flow.{MethodProbesVisitor, IFrame,
   IProbeIdGenerator, Instruction, LabelInfo, ClassProbesVisitor, 
   ClassProbesAdapter}
 import org.objectweb.asm.{Handle, Label, FieldVisitor, ClassReader}
-import scala.collection.mutable.{Map, MultiMap, HashMap, Set, ArrayBuffer}
-
-/** 
-  * The Jacoco internal relies on the fact that a method visitor would
-  * visit the coverage nodes in the same order as they were created to
-  * map the information correctly. This is done in the "Adapter"
-  * layer, both the ClassProbesAdapter and MethodProbesAdapter are
-  * final classes to prevent changing the behavior in subclassing. The
-  * actual instrumentation or parsing the runtime data are done in the
-  * "Probe visitor" objects, which the main adapter would delegate to.
-  *  
-  * As the logic to identify probes are all in the adatpers, it
-  * ensures that the visitors will always be called in the exact same
-  * order. Thus provides repeatability.
-  * 
-  * In the same manner, if we provide different visitors we might be able
-  * to map out correspondence between probes and branch instructions. 
-  */
+import scala.collection.mutable.{Map, Set, ArrayBuffer}
 
 /**
   A Simple class that implements the id generator interface.
@@ -62,35 +45,10 @@ class MyIdGenerator extends IProbeIdGenerator {
   * prcedes the probe. At the end of visiting the methods, the probe
   * numbers propagates through the predecessor chains. 
   */
-class Jump(val source: Instruction, val target:Label) {}
+case class Jump(val source: Instruction, val target:Label) {}
 
-abstract class ProbeExp {
-  def probes: ProbeExp
-}
-
-class SingleProbe(val id: Int) extends ProbeExp {
-  def probes = new Probes(ArrayBuffer(this))
-}
-
-class Probes(val branches: ArrayBuffer[ProbeExp]) extends ProbeExp {
-  def probes = new Probes(ArrayBuffer(this))
-
-  def add(e:ProbeExp): Int = {
-    branches.append(e)
-    branches.size - 1
-  }
-
-  def update(i: Int, e: ProbeExp) {
-    branches(i) = e
-  }
-
-  def join(e: Probes) {
-    branches ++= e.branches
-  }
-}
 
 // Assuming LabelInfo is available!
-
 /** A method probes mapper is a probes visitor that visits the probes and 
   keeps a map between probes and lines */
 class MethodProbesMapper extends MethodProbesVisitor {
@@ -107,9 +65,9 @@ class MethodProbesMapper extends MethodProbesVisitor {
   // Map instruction to the branch index of in the predecessor
   val insnToIdx: Map[Instruction, Int] = Map()
   // Map instruction to the 
-  val insnToProbes: Map[Instruction, ProbeExp] = Map()
+  val insnToCovExp: Map[Instruction, CovExp] = Map()
 
-  val lineToProbes: Map[Int, Probes] = Map()
+  val lineToBranchExp: Map[Int, BranchExp] = Map()
 
   val instructions: ArrayBuffer[Instruction] = ArrayBuffer()
   val jumps: ArrayBuffer[Jump] = ArrayBuffer()
@@ -184,7 +142,6 @@ class MethodProbesMapper extends MethodProbesVisitor {
   def addProbe(probeId: Int) {
     // We do not add probes to the flow graph, but we need to update
     // the branch count of the predecessor of the probe
-    println(s"Add probe to $lastInstruction")
     lastInstruction.addBranch
     probeToInsn += probeId -> lastInstruction
   }
@@ -194,7 +151,6 @@ class MethodProbesMapper extends MethodProbesVisitor {
     // is a successor.
     // It adds an probe point to the last instruction
     assert(lastInstruction != null)
-    println("merge scope")
     addProbe(probeId)
     lastInstruction = null // Merge point should have no predecessor.
   }
@@ -202,13 +158,11 @@ class MethodProbesMapper extends MethodProbesVisitor {
   override def visitJumpInsnWithProbe(opcode: Int, label:Label,
     probeId: Int, frame:IFrame) {
     visitInstruction  // This is not a typo
-    println("Jump with probe is not a jump!")
     addProbe(probeId)
   }
 
   override def visitInsnWithProbe(opcode: Int, probeId: Int) {
     visitInstruction
-    println("Insn with probe")
     addProbe(probeId)
   }
 
@@ -250,67 +204,91 @@ class MethodProbesMapper extends MethodProbesVisitor {
 
   /** Finishing the method */
   override def visitEnd {
-    println(s" Total ${jumps.size} jumps.")
     jumps.foreach{ jump =>
       {
         val insn = labelToInstruction(jump.target)
-        println(s"Add branch to ${jump.source}")
         insn.setPredecessor(jump.source)
         pred += insn -> jump.source        
       }
     }
 
-    probeToInsn.foreach { case(probeId, instruction) => {
-      var insn = instruction
-      var exp: ProbeExp = new SingleProbe(probeId)
-      // The instruction associated with the probe
-      insnToProbes += (insn -> exp)
-      while (insn != null) {
-        val predecessor = pred.getOrElse(insn, null)
-        if (predecessor != null) {
-          insn = predecessor
-          if (predecessor.getBranches > 1) {
-            // Predecessor is a branch point
-            var predInsn = insnToProbes.getOrElse(predecessor, null)
-            if (predInsn == null) {
-              // First time visit predecessor
-              predInsn = exp.probes
-              insnToProbes += predecessor -> predInsn
-            } else {
-              var idx = insnToIdx.getOrElse(insn, -1)
-              val probes = predInsn.asInstanceOf[Probes]
-              if (idx >= 0) {
-                // Update
-                probes.update(idx, exp)
-              } else {
-                // New branch
-                idx = probes.add(exp)
-                insnToIdx += (insn -> idx)
-              }
-              // Update
-            }
-            exp = predInsn
-          } else {
-            insnToProbes += (predecessor -> exp)
-          }
-          insn = predecessor
-        } else {
-          insn = null // break
+    def getBranchExp(insn: Instruction) =
+      insnToCovExp(insn) match {
+        case p:ProbeExp => {
+          val b = p.branchExp
+          insnToCovExp(insn) = b
+          b
         }
+        case b: BranchExp => b
+      }
+    
+
+    // Updaet predecessor and returns its branchExp
+    def updatePredecessor(predecessor: Instruction, insn:Instruction, 
+      exp: CovExp) = { 
+      if (!insnToCovExp.contains(predecessor)) {
+        val branchExp = exp.branchExp
+        insnToCovExp += predecessor -> branchExp
+        insnToIdx += (insn -> 0)
+        branchExp
+      } else {
+        val branchExp = insnToCovExp(predecessor) match {
+          case p:ProbeExp => {
+            val b = p.branchExp
+            insnToCovExp(predecessor) = b
+            insnToIdx += (insn -> 0)
+            b
+          }
+          case b: BranchExp => b
+        }
+        if (insnToIdx.contains(insn)) {
+          branchExp.update(insnToIdx(insn), exp)
+        } else {
+          val idx = branchExp.append(exp)
+          insnToIdx += (insn -> idx)
+        }
+        branchExp
       }
     }
+
+    probeToInsn.foreach { case(probeId, instruction) => 
+      var insn = instruction
+      var exp: CovExp = new ProbeExp(probeId)
+      // The instruction associated with the probe
+      if (insnToCovExp.contains(insn)) {
+        val branchExp = getBranchExp(insn)
+        branchExp.append(exp)
+      } else {
+        insnToCovExp += (insn -> exp)
+      }
+      while (pred.contains(insn)) {
+        val predecessor = pred(insn)
+        if (predecessor.getBranches > 1) {
+          exp = updatePredecessor(predecessor, insn, exp)
+        } else {
+          insnToCovExp += (predecessor -> exp)
+        }
+        insn = predecessor
+      }
     }
 
     instructions.foreach { insn =>
       if (insn.getBranches > 1) {
         // Add to the line branches
-        var probes = lineToProbes.getOrElse(insn.getLine, null)
+        var probes = lineToBranchExp.getOrElse(insn.getLine, null)
         if (probes == null) {
-          probes = insnToProbes(insn).asInstanceOf[Probes]
-          lineToProbes(insn.getLine) = probes
+          probes = insnToCovExp(insn) match {
+            case b:BranchExp => b
+            case p:ProbeExp => {
+              val b = p.branchExp
+              insnToCovExp += (insn -> b)
+              b
+            }
+          }
+          lineToBranchExp(insn.getLine) = probes
         } else {
           probes.join(
-            insnToProbes(insn).asInstanceOf[Probes])
+            insnToCovExp(insn).asInstanceOf[BranchExp])
         }
       }
     }
@@ -319,7 +297,7 @@ class MethodProbesMapper extends MethodProbesVisitor {
 
 /** Class probes mapper that computes a map from lines to probe ids.*/
 class ClassProbesMapper extends ClassProbesVisitor {
-  val classLineToProbes = new HashMap[Int, Set[Int]]() with MultiMap[Int, Int]
+  val classLineToBranchExp:Map[Int, BranchExp] = Map()
 
   /** Create a method probes mapper and analyze a method */
   override def visitMethod(access: Int, name: String,
@@ -328,7 +306,7 @@ class ClassProbesMapper extends ClassProbesVisitor {
     new MethodProbesMapper {
       override def visitEnd {
         super.visitEnd
-    //    classLineToProbes ++= lineToProbes
+        classLineToBranchExp ++= lineToBranchExp
       }
     }
   
@@ -345,10 +323,10 @@ class ClassProbesMapper extends ClassProbesVisitor {
 
 /** The main mapper class */
 class Mapper {
-  def analyzeClass(reader: ClassReader): MultiMap[Int, Int] = {
+  def analyzeClass(reader: ClassReader): Map[Int, BranchExp] = {
     val mapper = new ClassProbesMapper()
     val visitor = new ClassProbesAdapter(mapper, false)
     reader.accept(visitor, 0)
-    mapper.classLineToProbes
+    mapper.classLineToBranchExp
   }
 }

@@ -5,10 +5,9 @@ import org.objectweb.asm.{Opcodes, Label, ClassReader}
 import org.objectweb.asm.tree.{MethodNode, TryCatchBlockNode}
 import org.jacoco.core.internal.flow.{MethodProbesAdapter, LabelFlowAnalyzer}
 
-import scala.collection.mutable.Map
+import scala.collection.mutable.{Map, ArrayBuffer}
 import java.io.InputStream
 
-/*
 class MethodMapperTest extends FunSuite {
   def emptyMethod = {
     val method = new MethodNode()
@@ -30,15 +29,20 @@ class MethodMapperTest extends FunSuite {
     val methodAdapter = new MethodProbesAdapter(mapper, new MyIdGenerator())
     LabelFlowAnalyzer.markLabels(method)
     method.accept(methodAdapter)
-    mapper.lineToProbes
+    mapper.lineToBranchExp
+  }
+
+  def debug(method: MethodNode) = {
+    val mapper = new MethodProbesMapper()
+    val methodAdapter = new MethodProbesAdapter(mapper, new MyIdGenerator())
+    LabelFlowAnalyzer.markLabels(method)
+    method.accept(methodAdapter)
+    mapper
   }
 
   test("Linear Sequence with return map") {
     val result = analyze(linearSeqMethod)
-    assert(result(1001).size == 1 &&
-      result(1001).contains(0))
-    assert(result(1002).size == 1 &&
-      result(1002).contains(0))
+    assert(!result.contains(1001) && !result.contains(1002))
   }
 
   def ifBranchMethod = {
@@ -59,12 +63,14 @@ class MethodMapperTest extends FunSuite {
 
   test("Simple if branch method") {
     val result = analyze(ifBranchMethod) 
-    assert(result(1001).size == 2 && 
-      result(1001).contains(0) && result(1001).contains(1))
-    assert(result(1002).size == 1)
-    assert(result(1003).size == 1)
+    assert(result(1001).branches.size == 2 && 
+      result(1001).branches.contains(ProbeExp(0)) && 
+      result(1001).branches.contains(ProbeExp(1)))
+    assert(!result.contains(1002))
+    assert(!result.contains(1003))
   }
 
+ 
   def ifBranchMergeMethod = {
     val method = emptyMethod
     method.visitLineNumber(1001, new Label())
@@ -80,14 +86,16 @@ class MethodMapperTest extends FunSuite {
 
   test("If branch with merge method") {
     val result = analyze(ifBranchMergeMethod) 
-    assert(result(1001).size == 2 && 
-      result(1001).contains(0) && result(1001).contains(1))
-    assert(result(1002).size == 1)
-    // the last line has an additional probe
-    assert(result(1003).size == 1 && result(1003).contains(2))
+    assert(result(1001).branches.size == 2 && 
+      result(1001).branches.contains(ProbeExp(0)) && 
+      result(1001).branches.contains(ProbeExp(1)))
+    assert(!result.contains(1002))
+    assert(!result.contains(1003))
   }
 
+  
   def jumpBackwardMethod = {
+    // No branches at all
     val method = emptyMethod
     method.visitLineNumber(1001, new Label())
     val l1 = new Label()
@@ -105,9 +113,7 @@ class MethodMapperTest extends FunSuite {
 
   test("Jump backwards method") {
     val result = analyze(jumpBackwardMethod) 
-    assert(result(1001).size == 1 && result(1001).contains(0))
-    assert(result(1002).size == 1 && result(1002).contains(0))
-    assert(result(1003).size == 1 && result(1003).contains(0))
+    assert(result.size == 0)
   }
 
   def jumpToFirstMethod = {
@@ -128,10 +134,12 @@ class MethodMapperTest extends FunSuite {
 
   test("Jump to first instruction method") {
     val result = analyze(jumpToFirstMethod)
-    assert(result(1001).size == 2 &&
-      result(1001).contains(0) && result(1001).contains(1))
-    assert(result(1002).size == 1)
+    assert(result(1001).branches.size == 2 &&
+      result(1001).branches.contains(ProbeExp(0)) && 
+      result(1001).branches.contains(ProbeExp(1)))
+    assert(!result.contains(1002))
   }
+
 
   def tableSwitchMethod = {
     val method = emptyMethod
@@ -172,9 +180,12 @@ class MethodMapperTest extends FunSuite {
 
   test("Table switch with no intermediate labels") {
     val result = analyze(tableSwitchMethod)
-    assert(result(1001).size == 3 &&
-      result(1001).contains(0) && result(1001).contains(1) && result(1001).contains(2))
-    assert(result(1007).size == 1 && result(1007).contains(3))
+    assert(result(1001).branches.size == 3 &&
+      result(1001).branches.contains(ProbeExp(0)) && 
+      result(1001).branches.contains(ProbeExp(1)) && 
+      result(1001).branches.contains(ProbeExp(2)))
+    assert(!result.contains(1007) && 
+      !result.contains(1007))
   }
 
   def tableSwitchWithMerge = {
@@ -208,10 +219,13 @@ class MethodMapperTest extends FunSuite {
 
   test("Table with merge") {
     val result = analyze(tableSwitchWithMerge)
-    assert(result(1002).size == 3 &&
-      result(1002).contains(0) && result(1002).contains(1) && result(1002).contains(2))
-    assert(result(1005).size == 1 && result(1005).contains(4))
+    assert(result(1002).branches.size == 3 &&
+      result(1002).branches.contains(ProbeExp(0)) && 
+      result(1002).branches.contains(ProbeExp(1)) && 
+      result(1002).branches.contains(ProbeExp(2)))
+    assert(!result.contains(1005))
   }
+
 
   def tryCatchBlock = {
     val method = emptyMethod
@@ -243,13 +257,91 @@ class MethodMapperTest extends FunSuite {
   // As far as I can tell, try catch block does not have branches
   test("Try catch block") {
     val result = analyze(tryCatchBlock)
-    assert(result(1001).size == 1)
-    assert(result(1002).size == 1)
-    assert(result(1004).size == 1)
+    assert(result.isEmpty)
+  }
+
+  // An actual method that checks if input is null and return early.
+  def nullTestMethod = {
+    val method = emptyMethod
+    method.visitVarInsn(Opcodes.ASTORE, 2)
+    val line6 = new Label()
+    method.visitLineNumber(6, line6)
+    method.visitVarInsn(Opcodes.ALOAD, 1)
+    val l1 = new Label()
+    method.visitJumpInsn(Opcodes.IFNONNULL, l1)
+
+    val line7 = new Label()
+    method.visitLineNumber(7, line7)
+    method.visitInsn(Opcodes.ACONST_NULL)
+    method.visitInsn(Opcodes.ARETURN)
+
+    method.visitLabel(l1)
+    method.visitLineNumber(10, l1)
+    method.visitVarInsn(Opcodes.ALOAD, 1)
+    method.visitLdcInsn("yes")
+    method.visitMethodInsn(Opcodes.INVOKEVIRTUAL,
+      "java/lang/String", "equals",
+      "(Ljava/lang/Object;)Z", false)
+    val l2 = new Label()
+    method.visitJumpInsn(Opcodes.IFEQ, l2)
+
+    val line11 = new Label()
+    method.visitLineNumber(11, line11)
+    method.visitLdcInsn("yes")
+    method.visitInsn(Opcodes.ARETURN)
+
+    method.visitLabel(l2)
+    method.visitLineNumber(13, l2)
+    method.visitLdcInsn("no")
+    method.visitInsn(Opcodes.ARETURN)
+    method
+  }
+
+  test("Method with null check early return") {
+    val result = analyze(nullTestMethod)
+    assert(result(6).branches.contains(ProbeExp(0)) &&
+      result(6).branches.contains(BranchExp(ArrayBuffer(ProbeExp(2), ProbeExp(1)))))
+    assert(result(10).branches.contains(ProbeExp(1)) &&
+      result(10).branches.contains(ProbeExp(2)))
+  }
+
+  // An boolean expression is expanded to if-else branch.
+  def exprMethod = {
+    val method = emptyMethod
+    method.visitLineNumber(1, new Label())
+    method.visitVarInsn(Opcodes.ILOAD, 1)
+    val l1 = new Label()
+    method.visitJumpInsn(Opcodes.IFLE, l1)
+    method.visitInsn(Opcodes.ICONST_1)
+
+    val l2 = new Label()
+    method.visitJumpInsn(Opcodes.GOTO, l2)
+
+    method.visitLabel(l1)
+    method.visitInsn(Opcodes.ICONST_0)
+
+    method.visitLabel(l2)
+    method.visitMethodInsn(
+      Opcodes.INVOKESTATIC,
+      "com/google/common/base/Preconditions",
+      "checkArgument",
+      "(Z)V",
+      false)
+    method.visitLineNumber(2, new Label())
+    method.visitVarInsn(Opcodes.ILOAD, 1)
+    method.visitInsn(Opcodes.IRETURN)
+    method
+  }
+
+  test("Expand logical expression") {
+    val result = analyze(exprMethod)
+    assert(result(1).branches.size == 2)
+    assert(result(1).branches.contains(ProbeExp(0)))
+    assert(result(1).branches.contains(ProbeExp(1)))
   }
 }
 
-
+/*
 class ClassMapperTest extends FunSuite {
   def newAnalyzer = {
     val mapper = new ClassProbesMapper()
@@ -309,7 +401,6 @@ class MapperTest extends FunSuite {
     println(m)
     assert(m(11).size == 2) // Make sure the source code does not change
   }
+} */
 
-}
 
- */
