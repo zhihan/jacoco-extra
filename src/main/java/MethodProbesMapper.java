@@ -272,7 +272,7 @@ public class MethodProbesMapper extends MethodProbesVisitor {
     if (predExp == null) {
       BranchExp branchExp = exp.branchExp();
       insnToCovExp.put(predecessor, branchExp);
-      //insnToIdx.put(insn, 0); // current insn is the first branch
+      insnToIdx.put(insn, 0); // current insn is the first branch
       return branchExp;
     }
 

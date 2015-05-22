@@ -338,11 +338,55 @@ class MethodMapperTest extends FunSuite {
   test("Expand logical expression") {
     val result = analyze(exprMethod)
     assert(result(1).branches.size == 4)
-    println(result(1).branches)
     assert(result(1).branches.contains(ProbeExp(0)))
     assert(result(1).branches.contains(ProbeExp(1)))
     assert(result(1).branches.contains(ProbeExp(2)))
   }
+
+  def whileLoopWithException = {
+    val method = emptyMethod
+
+    method.visitLineNumber(0, new Label())
+    method.visitVarInsn(Opcodes.ILOAD, 2)
+    val l1 = new Label()
+    method.visitLabel(l1)
+    method.visitLineNumber(1, l1)
+    method.visitVarInsn(Opcodes.ILOAD, 2)
+    method.visitIincInsn(2, 1)
+    method.visitVarInsn(Opcodes.ILOAD, 1)
+    val l2 = new Label()
+    method.visitJumpInsn(Opcodes.IF_ICMPGE, l2)
+
+    method.visitLineNumber(2, new Label())
+    method.visitVarInsn(Opcodes.ILOAD, 2)
+    method.visitIntInsn(Opcodes.BIPUSH, 100)
+    method.visitJumpInsn(Opcodes.IF_ICMPLE, l1) // loop
+
+    method.visitLineNumber(3, new Label())
+    method.visitTypeInsn(Opcodes.NEW, "java/lang/RuntimeException")
+    method.visitInsn(Opcodes.DUP)
+    method.visitLdcInsn("Too much")
+    method.visitMethodInsn(
+      Opcodes.INVOKESPECIAL,
+      "java/lang/RuntimeException",
+      "<init>",
+      "Ljava/lang/String",
+      false)
+    method.visitInsn(Opcodes.ATHROW)
+
+    method.visitLabel(l2)
+    method.visitLineNumber(4, l2)
+    method.visitVarInsn(Opcodes.ILOAD, 2)
+    method.visitInsn(Opcodes.IRETURN)
+    method
+  }
+
+  test("While loop with exception") {
+    val result = analyze(whileLoopWithException)
+    assert(result(1).branches.size == 2)
+    assert(result(2).branches.size == 2)
+  }
+
 }
 
 

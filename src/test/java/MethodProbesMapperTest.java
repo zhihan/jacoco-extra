@@ -349,4 +349,51 @@ public class MethodProbesMapperTest implements IProbeIdGenerator {
     assertThat(result).containsKey(1);
     assertThat(result.get(1).getBranches()).hasSize(4);
   }
+
+  public void createWhileLoopWithException() {
+    method.visitLineNumber(0, new Label());
+    method.visitVarInsn(Opcodes.ILOAD, 2);
+    Label l1 = new Label();
+    method.visitLabel(l1);
+    method.visitLineNumber(1, l1);
+    method.visitVarInsn(Opcodes.ILOAD, 2);
+    method.visitIincInsn(2, 1);
+    method.visitVarInsn(Opcodes.ILOAD, 1);
+    Label l2 = new Label();
+    method.visitJumpInsn(Opcodes.IF_ICMPGE, l2);
+
+    method.visitLineNumber(2, new Label());
+    method.visitVarInsn(Opcodes.ILOAD, 2);
+    method.visitIntInsn(Opcodes.BIPUSH, 100);
+    method.visitJumpInsn(Opcodes.IF_ICMPLE, l1); // loop
+
+    method.visitLineNumber(3, new Label());
+    method.visitTypeInsn(Opcodes.NEW, "java/lang/RuntimeException");
+    method.visitInsn(Opcodes.DUP);
+    method.visitLdcInsn("Too much");
+    method.visitMethodInsn(
+      Opcodes.INVOKESPECIAL,
+      "java/lang/RuntimeException",
+      "<init>",
+      "Ljava/lang/String",
+      false);
+    method.visitInsn(Opcodes.ATHROW);
+
+    method.visitLabel(l2);
+    method.visitLineNumber(4, l2);
+    method.visitVarInsn(Opcodes.ILOAD, 2);
+    method.visitInsn(Opcodes.IRETURN);
+  }
+
+  @Test
+  public void testWhileMethod() {
+    createWhileLoopWithException();
+    Map<Integer, BranchExp> result = analyze();
+
+    assertThat(nextProbeId).isEqualTo(4);
+    assertThat(result).hasSize(2);
+    assertThat(result).containsKey(1);
+    assertThat(result).containsKey(2);
+    assertThat(result.get(1).getBranches()).hasSize(2);
+  }  
 }
