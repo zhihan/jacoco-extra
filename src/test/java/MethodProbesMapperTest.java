@@ -53,12 +53,12 @@ public class MethodProbesMapperTest implements IProbeIdGenerator {
   public void testLinearSequence() {
     createLinearSequence();
     Map<Integer, BranchExp> result = analyze();
-    
+
     assertThat(nextProbeId).isEqualTo(1);
     assertThat(result).isEmpty();
   }
 
- 
+
   private void createIfBranch() {
     method.visitLineNumber(1001, new Label());
     method.visitVarInsn(Opcodes.ILOAD, 1);
@@ -83,7 +83,7 @@ public class MethodProbesMapperTest implements IProbeIdGenerator {
     assertThat(result.get(1001).getBranches()).hasSize(2);
   }
 
-  
+
   private void createIfBranchMerge() {
     method.visitLineNumber(1001, new Label());
     method.visitVarInsn(Opcodes.ILOAD, 1);
@@ -107,7 +107,7 @@ public class MethodProbesMapperTest implements IProbeIdGenerator {
     assertThat(result.get(1001).getBranches()).hasSize(2);
   }
 
-  
+
   private void createJumpBackwards() {
     method.visitLineNumber(1001, new Label());
     final Label l1 = new Label();
@@ -130,7 +130,7 @@ public class MethodProbesMapperTest implements IProbeIdGenerator {
     assertThat(result).isEmpty();
   }
 
-  
+
   private void createJumpToFirst() {
     final Label l1 = new Label();
     method.visitLabel(l1);
@@ -162,15 +162,15 @@ public class MethodProbesMapperTest implements IProbeIdGenerator {
     Label l2 = new Label();
     Label l3 = new Label();
     method.visitTableSwitchInsn(1, 3, l3, new Label[] { l1, l2, l1 });
-    
+
     method.visitLabel(l1);
     method.visitLineNumber(1002, l1);
     method.visitIntInsn(Opcodes.BIPUSH, 11);
     method.visitVarInsn(Opcodes.ISTORE, 2);
-    method.visitLineNumber(1003, new Label());    
+    method.visitLineNumber(1003, new Label());
     Label l5 = new Label();
     method.visitJumpInsn(Opcodes.GOTO, l5);
-    
+
     method.visitLabel(l2);
     method.visitLineNumber(1004, l2);
     method.visitIntInsn(Opcodes.BIPUSH, 22);
@@ -182,7 +182,7 @@ public class MethodProbesMapperTest implements IProbeIdGenerator {
     method.visitLineNumber(1006, l3);
     method.visitInsn(Opcodes.ICONST_0);
     method.visitVarInsn(Opcodes.ISTORE, 2);
-    
+
     method.visitLabel(l5);
     method.visitLineNumber(1007, l5);
     method.visitVarInsn(Opcodes.ILOAD, 2);
@@ -262,5 +262,90 @@ public class MethodProbesMapperTest implements IProbeIdGenerator {
     assertThat(nextProbeId).isEqualTo(3);
     assertThat(result).isEmpty();
     Assert.assertEquals(3, nextProbeId);
-  } 
+  }
+
+  public void createNullCheckMethod() {
+    method.visitLineNumber(5, new Label());
+    method.visitVarInsn(Opcodes.ASTORE, 2);
+
+    Label line6 = new Label();
+    method.visitLineNumber(6, line6);
+    method.visitVarInsn(Opcodes.ALOAD, 1);
+    Label l1 = new Label();
+    method.visitJumpInsn(Opcodes.IFNONNULL, l1);
+
+    Label line7 = new Label();
+    method.visitLineNumber(7, line7);
+    method.visitInsn(Opcodes.ACONST_NULL);
+    method.visitInsn(Opcodes.ARETURN);
+
+    method.visitLabel(l1);
+    method.visitLineNumber(10, l1);
+    method.visitVarInsn(Opcodes.ALOAD, 1);
+    method.visitLdcInsn("yes");
+    method.visitMethodInsn(Opcodes.INVOKEVIRTUAL,
+        "java/lang/String", "equals",
+        "(Ljava/lang/Object;)Z", false);
+    Label l2 = new Label();
+    method.visitJumpInsn(Opcodes.IFEQ, l2);
+
+    Label line11 = new Label();
+    method.visitLineNumber(11, line11);
+    method.visitLdcInsn("yes");
+    method.visitInsn(Opcodes.ARETURN);
+
+    method.visitLabel(l2);
+    method.visitLineNumber(13, l2);
+    method.visitLdcInsn("no");
+    method.visitInsn(Opcodes.ARETURN);
+  }
+
+  @Test
+  public void testNullCheckMethod() {
+    createNullCheckMethod();
+    Map<Integer, BranchExp> result = analyze();
+
+    assertThat(nextProbeId).isEqualTo(3);
+    assertThat(result).hasSize(2);
+    assertThat(result).containsKey(6);
+    assertThat(result.get(6).getBranches()).hasSize(2);
+    assertThat(result).containsKey(10);
+    assertThat(result.get(10).getBranches()).hasSize(2);
+  }
+
+  public void createExprMethod() {
+    method.visitLineNumber(1, new Label());
+    method.visitVarInsn(Opcodes.ILOAD, 1);
+    Label l1 = new Label();
+    method.visitJumpInsn(Opcodes.IFLE, l1);
+    method.visitInsn(Opcodes.ICONST_1);
+
+    Label l2 = new Label();
+    method.visitJumpInsn(Opcodes.GOTO, l2);
+
+    method.visitLabel(l1);
+    method.visitInsn(Opcodes.ICONST_0);
+
+    method.visitLabel(l2);
+    method.visitMethodInsn(
+      Opcodes.INVOKESTATIC,
+      "com/google/common/base/Preconditions",
+      "checkArgument",
+      "(Z)V",
+      false);
+    method.visitLineNumber(2, new Label());
+    method.visitVarInsn(Opcodes.ILOAD, 1);
+    method.visitInsn(Opcodes.IRETURN);
+  }
+
+  @Test
+  public void testExprMethod() {
+    createExprMethod();
+    Map<Integer, BranchExp> result = analyze();
+
+    assertThat(nextProbeId).isEqualTo(3);
+    assertThat(result).hasSize(1);
+    assertThat(result).containsKey(1);
+    assertThat(result.get(1).getBranches()).hasSize(2);
+  }
 }

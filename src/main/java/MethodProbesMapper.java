@@ -21,12 +21,12 @@ import java.util.List;
 /**
  * A probes mapper is a ProbesVisitor object which is used with ProbesAdapter
  * to traverse the method bytecode to generate mapping between probes and source
- * code. 
+ * code.
  */
 public class MethodProbesMapper extends MethodProbesVisitor {
   // States
   //
-  // These are state variables that needs to be updated in the visitor methods. 
+  // These are state variables that needs to be updated in the visitor methods.
   // The values usually changes as we traverse the byte code.
   private Instruction lastInstruction = null;
   private int currentLine = -1;
@@ -49,14 +49,14 @@ public class MethodProbesMapper extends MethodProbesVisitor {
   private List<Instruction> instructions = new ArrayList<Instruction>();
   private List<Jump> jumps = new ArrayList<Jump>();
   private Map<Integer, Instruction> probeToInsn = new TreeMap<Integer, Instruction>();
-  
+
   // Local cache
   //
   // These are maps corresponding to data structures available in JaCoCo in other form.
   // We use local data structure to avoid need to change the JaCoCo internal code.
   private Map<Instruction, Instruction> predecessors = new HashMap<Instruction, Instruction>();
   private Map<Label, Instruction> labelToInsn = new HashMap<Label, Instruction>();
- 
+
   /** Visitor method to append a new Instruction */
   private void visitInsn() {
     Instruction instruction = new Instruction(currentLine);
@@ -72,16 +72,16 @@ public class MethodProbesMapper extends MethodProbesVisitor {
       labelToInsn.put(label, instruction);
     }
     currentLabels.clear(); // Update states
-    lastInstruction = instruction; 
+    lastInstruction = instruction;
   }
 
-  // Plain visitors: called from adapter when no probe is needed 
+  // Plain visitors: called from adapter when no probe is needed
   @Override
   public void visitInsn(int opcode) {
     visitInsn();
   }
 
-  @Override 
+  @Override
   public void visitIntInsn(int opcode, int operand) {
     visitInsn();
   }
@@ -102,7 +102,7 @@ public class MethodProbesMapper extends MethodProbesVisitor {
   }
 
   @Override
-  public void visitMethodInsn(int opcode, String owner, String name, 
+  public void visitMethodInsn(int opcode, String owner, String name,
     String desc, boolean itf) {
     visitInsn();
   }
@@ -135,7 +135,7 @@ public class MethodProbesMapper extends MethodProbesVisitor {
     visitInsn();
     jumps.add(new Jump(lastInstruction, label));
   }
-  
+
   @Override
   public void visitLabel(Label label) {
     currentLabels.add(label);
@@ -165,11 +165,11 @@ public class MethodProbesMapper extends MethodProbesVisitor {
         jumps.add(new Jump(lastInstruction, label));
         LabelInfo.setDone(label);
       }
-    }    
+    }
   }
 
   @Override
-  public void visitTableSwitchInsn(int min, int max, Label dflt, Label... labels) { 
+  public void visitTableSwitchInsn(int min, int max, Label dflt, Label... labels) {
     visitSwitchInsn(dflt, labels);
   }
 
@@ -194,10 +194,10 @@ public class MethodProbesMapper extends MethodProbesVisitor {
     assert(lastInstruction != null);
 
     addProbe(probeId);
-    lastInstruction = null; // Merge point should have no predecessor.    
+    lastInstruction = null; // Merge point should have no predecessor.
   }
 
-  @Override 
+  @Override
   public void visitJumpInsnWithProbe(int opcode, Label label, int probeId, IFrame frame) {
     visitInsn();
     addProbe(probeId);
@@ -209,13 +209,13 @@ public class MethodProbesMapper extends MethodProbesVisitor {
     addProbe(probeId);
   }
 
-  @Override 
+  @Override
   public void visitTableSwitchInsnWithProbes(int min, int max,
     Label dflt, Label[] labels, IFrame frame) {
     visitSwitchInsnWithProbes(dflt, labels);
   }
 
-  @Override 
+  @Override
   public void visitLookupSwitchInsnWithProbes(Label dflt,
     int[] keys, Label[] labels, IFrame frame) {
     visitSwitchInsnWithProbes(dflt, labels);
@@ -240,24 +240,12 @@ public class MethodProbesMapper extends MethodProbesVisitor {
       } else {
         // Note, in this case the instrumenter should insert intermediate labels
         // for the probes. These probes will be added for the switch instruction.
-        // 
+        //
         // There is no direct jump between lastInstruction and the label either.
-        addProbe(id); 
+        addProbe(id);
       }
       LabelInfo.setDone(label);
     }
-  }
-
-  // If a CovExp is ProbeExp, create a single-branch BranchExp and put it in the map.
-  private BranchExp getBranchExp(Instruction insn, CovExp exp) {
-    BranchExp result = null;
-    if (exp instanceof ProbeExp) {
-      result = exp.branchExp();
-      insnToCovExp.put(insn, result);
-    } else {
-      result = (BranchExp) exp;
-    }
-    return result;
   }
 
   // If a CovExp of pred is ProbeExp, create a single-branch BranchExp and put it in the map.
@@ -266,10 +254,10 @@ public class MethodProbesMapper extends MethodProbesVisitor {
     BranchExp result = null;
     CovExp exp = insnToCovExp.get(predecessor);
     if (exp instanceof ProbeExp) {
-      result = exp.branchExp(); // Change ProbeExp to BranchExp 
+      result = exp.branchExp(); // Change ProbeExp to BranchExp
       insnToCovExp.put(predecessor, result);
       // This can only happen if an Instruction is the predecessor of more than one
-      // instructions but its branch count is not > 0.
+      // instructions but its branch count is not > 1.
       System.err.println("Internal data inconsistent");
     } else {
       result = (BranchExp) exp;
@@ -286,7 +274,7 @@ public class MethodProbesMapper extends MethodProbesVisitor {
       insnToCovExp.put(predecessor, branchExp);
       insnToIdx.put(insn, 0); // current insn is the first branch
       return branchExp;
-    } 
+    }
 
     BranchExp branchExp = getPredBranchExp(predecessor, insn);
     Integer branchIdx = insnToIdx.get(insn);
@@ -300,7 +288,7 @@ public class MethodProbesMapper extends MethodProbesVisitor {
   }
 
   /** Finishing the method */
-  @Override 
+  @Override
   public void visitEnd() {
     for (Jump jump : jumps) {
       Instruction insn = labelToInsn.get(jump.target);
@@ -309,20 +297,30 @@ public class MethodProbesMapper extends MethodProbesVisitor {
     }
 
     // Compute CovExp for every instruction.
-    for (Map.Entry<Integer, Instruction> entry : probeToInsn.entrySet()) {     
+    for (Map.Entry<Integer, Instruction> entry : probeToInsn.entrySet()) {
       int probeId = entry.getKey();
       Instruction ins = entry.getValue();
 
       Instruction insn = ins;
       CovExp exp = new ProbeExp(probeId);
 
+      // Compute CovExp for the probed instruction.
       CovExp existingExp = insnToCovExp.get(insn);
       if (existingExp != null) {
-        // The instruction already has a branch, add the probeExp as 
+        // The instruction already has a branch, add the probeExp as
         // a new branch.
-        BranchExp branchExp = getBranchExp(insn, existingExp);
-        branchExp.add(exp); 
+        if (existingExp instanceof BranchExp) {
+          BranchExp branchExp = (BranchExp) existingExp;
+          branchExp.add(exp);
+        } else {
+          // This can only happen if the instruction is a predecessor and also
+          // has probe point, but the branch count is not > 1. 
+          System.err.println("Internal data inconsistent");
+        }
       } else {
+        if (insn.getBranches() > 1) {
+          exp = exp.branchExp();
+        }
         insnToCovExp.put(insn, exp);
       }
 
@@ -361,7 +359,7 @@ public class MethodProbesMapper extends MethodProbesVisitor {
   /**
     * Jumps between instructions and labels
     */
-  class Jump { 
+  class Jump {
     public final Instruction source;
     public final Label target;
 
@@ -370,4 +368,4 @@ public class MethodProbesMapper extends MethodProbesVisitor {
       target = l;
     }
   }
-} 
+}

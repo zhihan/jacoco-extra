@@ -341,7 +341,7 @@ class MethodMapperTest extends FunSuite {
   }
 }
 
-/*
+
 class ClassMapperTest extends FunSuite {
   def newAnalyzer = {
     val mapper = new ClassProbesMapper()
@@ -359,7 +359,7 @@ class ClassMapperTest extends FunSuite {
     mv.visitInsn(Opcodes.RETURN)
     mv.visitEnd()
     
-    assert(mapper.classLineToProbes.isEmpty)
+    assert(mapper.classLineToBranchExp.isEmpty)
   }
 }
 
@@ -398,9 +398,7 @@ class MapperTest extends FunSuite {
     val c = new MyC()
     val inputS = getTargetClass("me.zhihan.jacoco.internal.MyC")
     val m = mapper.analyzeClass(new ClassReader(inputS))
-    println(m)
-    assert(m(11).size == 2) // Make sure the source code does not change
+    assert(m.contains(11)) // Make sure the source code does not change
+    assert(m(11).branches.size == 2)
   }
-} */
-
-
+} 

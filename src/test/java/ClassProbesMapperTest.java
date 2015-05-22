@@ -7,7 +7,7 @@ import org.junit.Assert;
 import org.objectweb.asm.Opcodes;
 import org.jacoco.core.internal.flow.MethodProbesVisitor;
 
-import com.google.common.collect.Multimap;
+import java.util.Map;
 
 public class ClassProbesMapperTest {
     private ClassProbesMapper mapper;
@@ -26,7 +26,7 @@ public class ClassProbesMapperTest {
         mv.visitInsn(Opcodes.RETURN);
         mv.visitEnd();
 
-        Multimap<Integer, Integer> result = mapper.result();
+        Map<Integer, BranchExp> result = mapper.result();
         Assert.assertTrue(result.isEmpty());
     }
 }
