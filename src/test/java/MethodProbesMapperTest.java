@@ -1,5 +1,7 @@
 package org.jacoco.extra.internal;
 
+import static com.google.common.truth.Truth.assertThat;
+
 import org.junit.Test;
 import org.junit.Before;
 import org.junit.Assert;
@@ -13,8 +15,8 @@ import org.jacoco.core.internal.flow.MethodProbesAdapter;
 import org.jacoco.core.internal.flow.LabelFlowAnalyzer;
 import org.jacoco.core.internal.flow.IProbeIdGenerator;
 
-import com.google.common.collect.Multimap;
 import java.util.ArrayList;
+import java.util.Map;
 
 public class MethodProbesMapperTest implements IProbeIdGenerator {
   private int nextProbeId;
@@ -39,7 +41,7 @@ public class MethodProbesMapperTest implements IProbeIdGenerator {
     method.visitInsn(Opcodes.RETURN);
   }
 
-  public Multimap<Integer, Integer> analyze() {
+  public Map<Integer, BranchExp> analyze() {
     MethodProbesMapper mapper = new MethodProbesMapper();
     MethodProbesAdapter methodAdapter = new MethodProbesAdapter(mapper, this);
     LabelFlowAnalyzer.markLabels(method);
@@ -50,14 +52,13 @@ public class MethodProbesMapperTest implements IProbeIdGenerator {
   @Test
   public void testLinearSequence() {
     createLinearSequence();
-    Multimap<Integer, Integer> result = analyze();
+    Map<Integer, BranchExp> result = analyze();
     
-    Assert.assertEquals(1, nextProbeId);
-    Assert.assertTrue(result.containsEntry(1001, 0));
-    Assert.assertTrue(result.containsEntry(1002, 0));
-    Assert.assertEquals(result.size(), 2);
+    assertThat(nextProbeId).isEqualTo(1);
+    assertThat(result).isEmpty();
   }
 
+ 
   private void createIfBranch() {
     method.visitLineNumber(1001, new Label());
     method.visitVarInsn(Opcodes.ILOAD, 1);
@@ -75,13 +76,14 @@ public class MethodProbesMapperTest implements IProbeIdGenerator {
   @Test
   public void testIfBranch() {
     createIfBranch();
-    Multimap<Integer, Integer> result = analyze();
+    Map<Integer, BranchExp> result = analyze();
 
-    Assert.assertEquals(2, nextProbeId);
-    Assert.assertEquals(result.get(1002).size(), 1);
-    Assert.assertEquals(result.get(1003).size(), 1);
+    assertThat(nextProbeId).isEqualTo(2);
+    assertThat(result).containsKey(1001);
+    assertThat(result.get(1001).getBranches()).hasSize(2);
   }
 
+  
   private void createIfBranchMerge() {
     method.visitLineNumber(1001, new Label());
     method.visitVarInsn(Opcodes.ILOAD, 1);
@@ -97,17 +99,15 @@ public class MethodProbesMapperTest implements IProbeIdGenerator {
   @Test
   public void testIfBranchMerge() {
     createIfBranchMerge();
-    Multimap<Integer, Integer> result = analyze();
+    Map<Integer, BranchExp> result = analyze();
 
-    Assert.assertEquals(3, nextProbeId);
-    Assert.assertEquals(2, result.get(1001).size());
-    Assert.assertEquals(1, result.get(1002).size());
-    Assert.assertEquals(1, result.get(1003).size());
-    Assert.assertTrue(result.containsEntry(1003, 2));
-    Assert.assertTrue(result.containsEntry(1001, 0));
-    Assert.assertTrue(result.containsEntry(1001, 1));
+    assertThat(nextProbeId).isEqualTo(3);
+    assertThat(result).hasSize(1);
+    assertThat(result).containsKey(1001);
+    assertThat(result.get(1001).getBranches()).hasSize(2);
   }
 
+  
   private void createJumpBackwards() {
     method.visitLineNumber(1001, new Label());
     final Label l1 = new Label();
@@ -124,17 +124,13 @@ public class MethodProbesMapperTest implements IProbeIdGenerator {
   @Test
   public void testJumpBackwards() {
     createJumpBackwards();
-    Multimap<Integer, Integer> result = analyze();
+    Map<Integer, BranchExp> result = analyze();
 
-    Assert.assertEquals(1, nextProbeId);
-    Assert.assertEquals(1, result.get(1001).size());
-    Assert.assertEquals(1, result.get(1002).size());
-    Assert.assertEquals(1, result.get(1003).size());
-    Assert.assertTrue(result.containsEntry(1001, 0));
-    Assert.assertTrue(result.containsEntry(1002, 0));
-    Assert.assertTrue(result.containsEntry(1003, 0));
+    assertThat(nextProbeId).isEqualTo(1);
+    assertThat(result).isEmpty();
   }
 
+  
   private void createJumpToFirst() {
     final Label l1 = new Label();
     method.visitLabel(l1);
@@ -152,13 +148,11 @@ public class MethodProbesMapperTest implements IProbeIdGenerator {
   @Test
   public void testJumpToFirst() {
     createJumpToFirst();
-    Multimap<Integer, Integer> result = analyze();
-
-    Assert.assertEquals(2, nextProbeId);
-    Assert.assertEquals(2, result.get(1001).size());
-    Assert.assertEquals(1, result.get(1002).size());
-    Assert.assertTrue(result.containsEntry(1001, 0));
-    Assert.assertTrue(result.containsEntry(1001, 1));
+    Map<Integer, BranchExp> result = analyze();
+    assertThat(nextProbeId).isEqualTo(2);
+    assertThat(result).hasSize(1);
+    assertThat(result).containsKey(1001);
+    assertThat(result.get(1001).getBranches()).hasSize(2);
   }
 
   public void createTableSwitch() {
@@ -198,14 +192,12 @@ public class MethodProbesMapperTest implements IProbeIdGenerator {
   @Test
   public void testTableSwitch() {
     createTableSwitch();
-    Multimap<Integer, Integer> result = analyze();
+    Map<Integer, BranchExp> result = analyze();
 
-    Assert.assertEquals(4, nextProbeId);
-    Assert.assertEquals(3, result.get(1001).size());
-    Assert.assertTrue(result.containsEntry(1001, 0));
-    Assert.assertTrue(result.containsEntry(1001, 1));
-    Assert.assertTrue(result.containsEntry(1001, 2));
-    Assert.assertTrue(result.containsEntry(1007, 3));
+    assertThat(nextProbeId).isEqualTo(4);
+    assertThat(result).hasSize(1);
+    assertThat(result).containsKey(1001);
+    assertThat(result.get(1001).getBranches()).hasSize(3);
   }
 
   private void createTableSwitchMerge() {
@@ -233,14 +225,12 @@ public class MethodProbesMapperTest implements IProbeIdGenerator {
   @Test
   public void testTableSwitchMerge() {
     createTableSwitchMerge();
-    Multimap<Integer, Integer> result = analyze();
+    Map<Integer, BranchExp> result = analyze();
 
-    Assert.assertEquals(5, nextProbeId);
-    Assert.assertEquals(3, result.get(1002).size());
-    Assert.assertTrue(result.containsEntry(1002, 0));
-    Assert.assertTrue(result.containsEntry(1002, 1));
-    Assert.assertTrue(result.containsEntry(1002, 2));
-    Assert.assertTrue(result.containsEntry(1005, 4));
+    assertThat(nextProbeId).isEqualTo(5);
+    assertThat(result).hasSize(1);
+    assertThat(result).containsKey(1002);
+    assertThat(result.get(1002).getBranches()).hasSize(3);
   }
 
   private void createTryCatchBlock() {
@@ -267,12 +257,10 @@ public class MethodProbesMapperTest implements IProbeIdGenerator {
   @Test
   public void testTryCatchBlock() {
     createTryCatchBlock();
-    Multimap<Integer, Integer> result = analyze();
+    Map<Integer, BranchExp> result = analyze();
 
+    assertThat(nextProbeId).isEqualTo(3);
+    assertThat(result).isEmpty();
     Assert.assertEquals(3, nextProbeId);
-    Assert.assertEquals(1, result.get(1001).size());
-    Assert.assertEquals(1, result.get(1002).size());
-    Assert.assertEquals(1, result.get(1004).size());
-
-  }
+  } 
 }

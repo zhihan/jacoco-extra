@@ -13,6 +13,7 @@ import com.google.common.collect.HashMultimap;
 
 import java.util.Map;
 import java.util.HashMap;
+import java.util.TreeMap;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -31,10 +32,14 @@ public class MethodProbesMapper extends MethodProbesVisitor {
   private int currentLine = -1;
   private List<Label> currentLabels = new ArrayList<Label>();
 
+  // Intermediate results
+  private final Map<Instruction, CovExp> insnToCovExp = new HashMap();
+  private final Map<Instruction, Integer> insnToIdx = new HashMap();
+
   // Result
-  private Multimap<Integer, Integer> lineToProbes = HashMultimap.<Integer, Integer>create();
-  public Multimap<Integer, Integer> result() {
-    return lineToProbes;
+  private Map<Integer, BranchExp> lineToBranchExp = new TreeMap();
+  public Map<Integer, BranchExp> result() {
+    return lineToBranchExp;
   }
 
   // Intermediate results
@@ -43,7 +48,7 @@ public class MethodProbesMapper extends MethodProbesVisitor {
   // the final results.
   private List<Instruction> instructions = new ArrayList<Instruction>();
   private List<Jump> jumps = new ArrayList<Jump>();
-  private Map<Integer, Instruction> probeToInsn = new HashMap<Integer, Instruction>();
+  private Map<Integer, Instruction> probeToInsn = new TreeMap<Integer, Instruction>();
   
   // Local cache
   //
@@ -241,7 +246,58 @@ public class MethodProbesMapper extends MethodProbesVisitor {
       }
       LabelInfo.setDone(label);
     }
-  }  
+  }
+
+  // If a CovExp is ProbeExp, create a single-branch BranchExp and put it in the map.
+  private BranchExp getBranchExp(Instruction insn, CovExp exp) {
+    BranchExp result = null;
+    if (exp instanceof ProbeExp) {
+      result = exp.branchExp();
+      insnToCovExp.put(insn, result);
+    } else {
+      result = (BranchExp) exp;
+    }
+    return result;
+  }
+
+  // If a CovExp of pred is ProbeExp, create a single-branch BranchExp and put it in the map.
+  // Also update the index of insn.
+  private BranchExp getPredBranchExp(Instruction predecessor, Instruction insn) {
+    BranchExp result = null;
+    CovExp exp = insnToCovExp.get(predecessor);
+    if (exp instanceof ProbeExp) {
+      result = exp.branchExp(); // Change ProbeExp to BranchExp 
+      insnToCovExp.put(predecessor, result);
+      // This can only happen if an Instruction is the predecessor of more than one
+      // instructions but its branch count is not > 0.
+      System.err.println("Internal data inconsistent");
+    } else {
+      result = (BranchExp) exp;
+    }
+    return result;
+  }
+
+  // Update a branch predecessor and returns the BranchExp of the predecessor.
+  private BranchExp updateBranchPredecessor(Instruction predecessor, Instruction insn,
+    CovExp exp) {
+    CovExp predExp = insnToCovExp.get(predecessor);
+    if (predExp == null) {
+      BranchExp branchExp = exp.branchExp();
+      insnToCovExp.put(predecessor, branchExp);
+      insnToIdx.put(insn, 0); // current insn is the first branch
+      return branchExp;
+    } 
+
+    BranchExp branchExp = getPredBranchExp(predecessor, insn);
+    Integer branchIdx = insnToIdx.get(insn);
+    if (branchIdx == null) {
+      branchIdx = branchExp.add(exp);
+      insnToIdx.put(insn, branchIdx);
+    } else {
+      branchExp.update(branchIdx, exp);
+    }
+    return branchExp;
+  }
 
   /** Finishing the method */
   @Override 
@@ -252,17 +308,51 @@ public class MethodProbesMapper extends MethodProbesVisitor {
       predecessors.put(insn, jump.source);
     }
 
+    // Compute CovExp for every instruction.
     for (Map.Entry<Integer, Instruction> entry : probeToInsn.entrySet()) {     
       int probeId = entry.getKey();
-      Instruction i = entry.getValue();
+      Instruction ins = entry.getValue();
 
-      Instruction insn = i;
-      while (insn != null) {
-        lineToProbes.put(insn.getLine(), probeId); 
-        if (insn.getBranches() > 1) {
-          insn = null; // break at branches 
+      Instruction insn = ins;
+      CovExp exp = new ProbeExp(probeId);
+
+      CovExp existingExp = insnToCovExp.get(insn);
+      if (existingExp != null) {
+        // The instruction already has a branch, add the probeExp as 
+        // a new branch.
+        BranchExp branchExp = getBranchExp(insn, existingExp);
+        branchExp.add(exp); 
+      } else {
+        insnToCovExp.put(insn, exp);
+      }
+
+      Instruction predecessor = predecessors.get(insn);
+      while (predecessor != null) {
+        if (predecessor.getBranches() > 1) {
+          exp = updateBranchPredecessor(predecessor, insn, exp);
         } else {
-          insn = predecessors.get(insn);
+          // No branch at predecessor, use the same CovExp
+          insnToCovExp.put(predecessor, exp);
+        }
+        insn = predecessor;
+        predecessor = predecessors.get(insn);
+      }
+    }
+
+    // Merge branches in the instructions on the same line
+    for (Instruction insn : instructions) {
+      if (insn.getBranches() > 1) {
+        CovExp insnExp = insnToCovExp.get(insn);
+        if (insnExp != null && (insnExp instanceof BranchExp)) {
+          BranchExp exp = (BranchExp) insnExp;
+          BranchExp lineExp = lineToBranchExp.get(insn.getLine());
+          if (lineExp == null) {
+            lineToBranchExp.put(insn.getLine(), exp);
+          } else {
+            lineExp.merge(exp);
+          }
+        } else {
+          System.err.println("Analyzer Internal data inconsistent.");
         }
       }
     }
