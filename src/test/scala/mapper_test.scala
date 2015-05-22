@@ -312,11 +312,13 @@ class MethodMapperTest extends FunSuite {
     method.visitVarInsn(Opcodes.ILOAD, 1)
     val l1 = new Label()
     method.visitJumpInsn(Opcodes.IFLE, l1)
+
+    method.visitVarInsn(Opcodes.ILOAD, 2)
+    method.visitJumpInsn(Opcodes.IFLE, l1)
     method.visitInsn(Opcodes.ICONST_1)
 
     val l2 = new Label()
     method.visitJumpInsn(Opcodes.GOTO, l2)
-
     method.visitLabel(l1)
     method.visitInsn(Opcodes.ICONST_0)
 
@@ -335,9 +337,11 @@ class MethodMapperTest extends FunSuite {
 
   test("Expand logical expression") {
     val result = analyze(exprMethod)
-    assert(result(1).branches.size == 2)
+    assert(result(1).branches.size == 4)
+    println(result(1).branches)
     assert(result(1).branches.contains(ProbeExp(0)))
     assert(result(1).branches.contains(ProbeExp(1)))
+    assert(result(1).branches.contains(ProbeExp(2)))
   }
 }
 

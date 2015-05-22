@@ -261,7 +261,6 @@ public class MethodProbesMapperTest implements IProbeIdGenerator {
 
     assertThat(nextProbeId).isEqualTo(3);
     assertThat(result).isEmpty();
-    Assert.assertEquals(3, nextProbeId);
   }
 
   public void createNullCheckMethod() {
