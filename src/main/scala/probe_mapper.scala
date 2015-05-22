@@ -18,35 +18,7 @@ class MyIdGenerator extends IProbeIdGenerator {
   }
 }
 
-/**
-  * The mapper is a probes visitor that will cache control flow
-  * information as well as keeping track of the probes as the main
-  * driver generates the probe ids. Upon finishing the method it uses
-  * the information collected to generate the mapping information
-  * between probes and the instructions. 
-  * 
-  * 
-  * Implemenation
-  *  
-  * The implementation roughly follows the same pattern of the
-  * Analyzer. The mapper has a few states:
-  *   - lineMappings: a mapping between line number and labels
-  * 
-  *   - a sequence of "instructions", where each instruction has one
-  *     or more predecessors. The predecessor has a sole purpose of
-  *     'propagating branch information. Therefore the merge nodes in
-  *     the CFG has no predecessors, since the branch information
-  *     stops at the merge points.
-  * 
-  *   - The instructions each has states that keep track of the probes
-  *     that are associated with the instruction.
-  * 
-  * Initially the probes are associated with the instructions that
-  * prcedes the probe. At the end of visiting the methods, the probe
-  * numbers propagates through the predecessor chains. 
-  */
 case class Jump(val source: Instruction, val target:Label) {}
-
 
 // Assuming LabelInfo is available!
 /** A method probes mapper is a probes visitor that visits the probes and 
@@ -66,7 +38,7 @@ class MethodProbesMapper extends MethodProbesVisitor {
   val insnToIdx: Map[Instruction, Int] = Map()
   // Map instruction to the 
   val insnToCovExp: Map[Instruction, CovExp] = Map()
-
+  // Final results
   val lineToBranchExp: Map[Int, BranchExp] = Map()
 
   val instructions: ArrayBuffer[Instruction] = ArrayBuffer()
@@ -212,17 +184,6 @@ class MethodProbesMapper extends MethodProbesVisitor {
       }
     }
 
-    def getBranchExp(insn: Instruction) =
-      insnToCovExp(insn) match {
-        case p:ProbeExp => {
-          val b = p.branchExp
-          insnToCovExp(insn) = b
-          b
-        }
-        case b: BranchExp => b
-      }
-    
-
     // Updaet predecessor and returns its branchExp
     def updatePredecessor(predecessor: Instruction, insn:Instruction, 
       exp: CovExp) = { 
@@ -236,17 +197,17 @@ class MethodProbesMapper extends MethodProbesVisitor {
           case p:ProbeExp => {
             val b = p.branchExp
             insnToCovExp(predecessor) = b
-            insnToIdx += (insn -> 0)
+            println("Warning: first branch unknown")
+            // Don't know which one is the first branch, this is because
+            // Jacoco's branch count does not think the node has branches.
             b
           }
           case b: BranchExp => b
         }
-        if (insnToIdx.contains(insn)) {
-          branchExp.update(insnToIdx(insn), exp)
-        } else {
+        if (!insnToIdx.contains(insn)) {
           val idx = branchExp.append(exp)
           insnToIdx += (insn -> idx)
-        }
+        } // Otherwise no need to update because shared mutable objects.
         branchExp
       }
     }
@@ -254,17 +215,21 @@ class MethodProbesMapper extends MethodProbesVisitor {
     probeToInsn.foreach { case(probeId, instruction) => 
       var insn = instruction
       var exp: CovExp = new ProbeExp(probeId)
-      // The instruction associated with the probe
+
       if (insnToCovExp.contains(insn)) {
-        val branchExp = getBranchExp(insn)
-        branchExp.append(exp)
+        insnToCovExp(insn).asInstanceOf[BranchExp].append(exp)
       } else {
+        if (insn.getBranches > 1) {
+          exp = exp.branchExp
+        }
         insnToCovExp += (insn -> exp)
       }
-      while (pred.contains(insn)) {
+
+      while (insn != null && pred.contains(insn)) {
         val predecessor = pred(insn)
         if (predecessor.getBranches > 1) {
           exp = updatePredecessor(predecessor, insn, exp)
+          insn = null // break
         } else {
           insnToCovExp += (predecessor -> exp)
         }
@@ -275,20 +240,12 @@ class MethodProbesMapper extends MethodProbesVisitor {
     instructions.foreach { insn =>
       if (insn.getBranches > 1) {
         // Add to the line branches
+        val insnExp = insnToCovExp(insn).asInstanceOf[BranchExp]
         var probes = lineToBranchExp.getOrElse(insn.getLine, null)
         if (probes == null) {
-          probes = insnToCovExp(insn) match {
-            case b:BranchExp => b
-            case p:ProbeExp => {
-              val b = p.branchExp
-              insnToCovExp += (insn -> b)
-              b
-            }
-          }
-          lineToBranchExp(insn.getLine) = probes
+          lineToBranchExp(insn.getLine) = insnExp
         } else {
-          probes.join(
-            insnToCovExp(insn).asInstanceOf[BranchExp])
+          probes.join(insnExp)
         }
       }
     }
@@ -319,7 +276,6 @@ class ClassProbesMapper extends ClassProbesVisitor {
     // println(s"Total ${count} probes inserted.")
   }
 }
-
 
 /** The main mapper class */
 class Mapper {
