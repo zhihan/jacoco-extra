@@ -314,14 +314,16 @@ public class MethodProbesMapperTest implements IProbeIdGenerator {
 
   public void createExprMethod() {
     method.visitLineNumber(1, new Label());
+
     method.visitVarInsn(Opcodes.ILOAD, 1);
     Label l1 = new Label();
     method.visitJumpInsn(Opcodes.IFLE, l1);
-    method.visitInsn(Opcodes.ICONST_1);
-
+    method.visitVarInsn(Opcodes.ILOAD, 2);
     Label l2 = new Label();
+    method.visitJumpInsn(Opcodes.IFLE, l1);
+    method.visitInsn(Opcodes.ICONST_1);
+    
     method.visitJumpInsn(Opcodes.GOTO, l2);
-
     method.visitLabel(l1);
     method.visitInsn(Opcodes.ICONST_0);
 
@@ -342,9 +344,9 @@ public class MethodProbesMapperTest implements IProbeIdGenerator {
     createExprMethod();
     Map<Integer, BranchExp> result = analyze();
 
-    assertThat(nextProbeId).isEqualTo(3);
+    assertThat(nextProbeId).isEqualTo(5);
     assertThat(result).hasSize(1);
     assertThat(result).containsKey(1);
-    assertThat(result.get(1).getBranches()).hasSize(2);
+    assertThat(result.get(1).getBranches()).hasSize(4);
   }
 }
