@@ -272,7 +272,7 @@ public class MethodProbesMapper extends MethodProbesVisitor {
     if (predExp == null) {
       BranchExp branchExp = exp.branchExp();
       insnToCovExp.put(predecessor, branchExp);
-      insnToIdx.put(insn, 0); // current insn is the first branch
+      //insnToIdx.put(insn, 0); // current insn is the first branch
       return branchExp;
     }
 
@@ -281,9 +281,8 @@ public class MethodProbesMapper extends MethodProbesVisitor {
     if (branchIdx == null) {
       branchIdx = branchExp.add(exp);
       insnToIdx.put(insn, branchIdx);
-    } else {
-      branchExp.update(branchIdx, exp);
-    }
+    } 
+    // No need to update if the branch alreadly exists.
     return branchExp;
   }
 

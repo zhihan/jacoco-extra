@@ -229,7 +229,6 @@ class MethodProbesMapper extends MethodProbesVisitor {
         val predecessor = pred(insn)
         if (predecessor.getBranches > 1) {
           exp = updatePredecessor(predecessor, insn, exp)
-          insn = null // break
         } else {
           insnToCovExp += (predecessor -> exp)
         }

@@ -11,8 +11,7 @@ public class CovExpTest {
   public void testBranchExp() {
     CovExp a = new ProbeExp(0);
     BranchExp actual = a.branchExp();
-    assertThat(actual.getBranches().size()).isEqualTo(1);
-    assertThat(actual.getBranches().contains(a));
+    assertThat(actual.getBranches()).containsExactly(a);
 
     BranchExp nested = actual.branchExp();
     assertThat(nested.getBranches()).containsExactly(actual);
