@@ -31,13 +31,13 @@ public class MethodProbesMapper extends MethodProbesVisitor {
   private Instruction lastInstruction = null;
   private int currentLine = -1;
   private List<Label> currentLabels = new ArrayList<Label>();
-
+  
   // Intermediate results
-  private final Map<Instruction, CovExp> insnToCovExp = new HashMap();
-  private final Map<Instruction, Integer> insnToIdx = new HashMap();
+  private final Map<Instruction, CovExp> insnToCovExp = new HashMap<Instruction, CovExp>();
+  private final Map<Instruction, Integer> insnToIdx = new HashMap<Instruction, Integer>();
 
   // Result
-  private Map<Integer, BranchExp> lineToBranchExp = new TreeMap();
+  private Map<Integer, BranchExp> lineToBranchExp = new TreeMap<Integer, BranchExp>();
   public Map<Integer, BranchExp> result() {
     return lineToBranchExp;
   }
