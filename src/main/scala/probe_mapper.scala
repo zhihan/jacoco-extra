@@ -11,7 +11,7 @@ import scala.collection.mutable.{Map, Set, ArrayBuffer}
   */
 class MyIdGenerator extends IProbeIdGenerator {
   private var id = -1
-  
+
   override def nextId = {
     id += 1
     id
@@ -186,12 +186,12 @@ class MethodProbesMapper extends MethodProbesVisitor {
 
     // Updaet predecessor and returns its branchExp
     def updatePredecessor(predecessor: Instruction, insn:Instruction, 
-      exp: CovExp) = { 
+      exp: CovExp) : (Boolean, BranchExp) = { 
       if (!insnToCovExp.contains(predecessor)) {
         val branchExp = exp.branchExp
         insnToCovExp += predecessor -> branchExp
         insnToIdx += (insn -> 0)
-        branchExp
+        (true, branchExp)
       } else {
         val branchExp = insnToCovExp(predecessor) match {
           case p:ProbeExp => {
@@ -208,7 +208,7 @@ class MethodProbesMapper extends MethodProbesVisitor {
           val idx = branchExp.append(exp)
           insnToIdx += (insn -> idx)
         } // Otherwise no need to update because shared mutable objects.
-        branchExp
+        (false, branchExp)
       }
     }
 
@@ -228,7 +228,8 @@ class MethodProbesMapper extends MethodProbesVisitor {
       while (insn != null && pred.contains(insn)) {
         val predecessor = pred(insn)
         if (predecessor.getBranches > 1) {
-          exp = updatePredecessor(predecessor, insn, exp)
+          val (isNew, predExp) = updatePredecessor(predecessor, insn, exp)
+          exp = predExp
         } else {
           insnToCovExp += (predecessor -> exp)
         }
