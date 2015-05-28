@@ -266,14 +266,14 @@ public class MethodProbesMapper extends MethodProbesVisitor {
   }
 
   // Update a branch predecessor and returns the BranchExp of the predecessor.
-  private BranchExp updateBranchPredecessor(Instruction predecessor, Instruction insn,
+  private Boolean updateBranchPredecessor(Instruction predecessor, Instruction insn,
     CovExp exp) {
     CovExp predExp = insnToCovExp.get(predecessor);
     if (predExp == null) {
       BranchExp branchExp = exp.branchExp();
       insnToCovExp.put(predecessor, branchExp);
       insnToIdx.put(insn, 0); // current insn is the first branch
-      return branchExp;
+      return true;
     }
 
     BranchExp branchExp = getPredBranchExp(predecessor, insn);
@@ -283,7 +283,7 @@ public class MethodProbesMapper extends MethodProbesVisitor {
       insnToIdx.put(insn, branchIdx);
     } 
     // No need to update if the branch alreadly exists.
-    return branchExp;
+    return false;
   }
 
   /** Finishing the method */
@@ -326,7 +326,12 @@ public class MethodProbesMapper extends MethodProbesVisitor {
       Instruction predecessor = predecessors.get(insn);
       while (predecessor != null) {
         if (predecessor.getBranches() > 1) {
-          exp = updateBranchPredecessor(predecessor, insn, exp);
+          Boolean isNew = updateBranchPredecessor(predecessor, insn, exp);
+          if (!isNew) {
+            break;
+          } else {
+            exp = insnToCovExp.get(predecessor);
+          }
         } else {
           // No branch at predecessor, use the same CovExp
           insnToCovExp.put(predecessor, exp);
